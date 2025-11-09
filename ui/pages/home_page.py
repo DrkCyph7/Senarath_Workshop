@@ -1,362 +1,415 @@
 import os
+import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QGridLayout, QMessageBox
+    QFrame, QGridLayout, QMessageBox, QScrollArea
 )
-from PySide6.QtCore import Qt, QTimer, QDateTime
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtCore import Qt, QTimer, QDateTime, QSize
+from PySide6.QtGui import QFont, QPixmap, QColor
+from ui.theme import ColorPalette, Typography, Spacing, Styles
+
+
+class StatCard(QFrame):
+    """Custom stat card widget"""
+    def __init__(self, title, value, icon, color):
+        super().__init__()
+        self.setObjectName("stat_card")
+        self.color = color
+        self.title_text = title
+        self.icon_text = icon
+        
+        self.setStyleSheet(f"""
+            QFrame#stat_card {{
+                background-color: #ffffff;
+                border-radius: 10px;
+                padding: 20px;
+                border: none;
+            }}
+            QFrame#stat_card:hover {{
+                background-color: #f9f9f9;
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        
+        # Icon and title row
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.icon_label = QLabel(icon)
+        self.icon_label.setStyleSheet(f"font-size: 32px; color: {color}; background: transparent;")
+        header_layout.addWidget(self.icon_label)
+        
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet("font-size: 15px; color: #555; font-weight: 500; background: transparent;")
+        header_layout.addWidget(self.title_label)
+        header_layout.addStretch()
+        
+        layout.addLayout(header_layout)
+        
+        # Value label
+        self.value_label = QLabel(value)
+        self.value_label.setStyleSheet(f"font-size: 32px; font-weight: 700; color: {color}; background: transparent;")
+        layout.addWidget(self.value_label)
+    
+    def update_value(self, new_value):
+        """Update the displayed value"""
+        self.value_label.setText(str(new_value))
+
+
+class ModernActionTile(QPushButton):
+    """Modern action tile button"""
+    def __init__(self, icon, title, description, color, hover_color=None):
+        super().__init__()
+        self.setObjectName("action_tile")
+        self.setFixedHeight(120)
+        self.setCursor(Qt.PointingHandCursor)
+        
+        if hover_color is None:
+            hover_color = color
+        
+        self.setStyleSheet(f"""
+            QPushButton#action_tile {{
+                background-color: {color};
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-weight: 600;
+            }}
+            QPushButton#action_tile:hover {{
+                background-color: {hover_color};
+            }}
+            QPushButton#action_tile:pressed {{
+                background-color: {color};
+            }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(12)
+        
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet("font-size: 36px; background: transparent; color: white;")
+        icon_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(icon_label)
+        
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 14px; font-weight: 700; color: white; background: transparent;")
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+        
+        desc_label = QLabel(description)
+        desc_label.setStyleSheet("font-size: 12px; font-weight: 400; color: white; background: transparent;")
+        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setWordWrap(True)
+        layout.addWidget(desc_label)
+        
+        layout.addStretch()
 
 
 class HomePage(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
+        
+        # Database path
+        self.db_path = "ui/db/senarath.db"
 
-        # === Fixed UI Colors ===
-        bg_color = "#ffffff"
-        card_color = "#ffffff"
-        accent_color = "#2d7a5f"
-        text_color = "#2c2c2c"
-        border_color = "#e0e0e0"
-        secondary_color = "#8b6f47"
+        # === Use unified theme ===
+        self.bg_color = ColorPalette.BG_PRIMARY
+        self.card_bg = ColorPalette.CARD_BG
+        self.primary_color = ColorPalette.ACCENT_PRIMARY
+        self.secondary_color = ColorPalette.ACCENT_SECONDARY
+        self.accent_blue = ColorPalette.ACCENT_BLUE
+        self.accent_green = ColorPalette.ACCENT_GREEN
+        self.accent_orange = ColorPalette.ACCENT_ORANGE
+        self.accent_red = ColorPalette.ACCENT_RED
+        self.text_primary = ColorPalette.TEXT_PRIMARY
+        self.text_secondary = ColorPalette.TEXT_SECONDARY
+        self.border_color = "#d1d5db"
 
         self.setStyleSheet(f"""
             QWidget {{
-                background-color: {bg_color};
-                color: {text_color};
-                font-family: 'Segoe UI', Arial, sans-serif;
+                background-color: {self.bg_color};
+                color: {self.text_primary};
+                font-family: 'Segoe UI', 'Inter', Arial, sans-serif;
             }}
-            QLabel#system_title {{
-                font-size: 26px;
-                font-weight: 700;
-                color: #1a1a1a;
+            QLabel {{
+                background-color: transparent;
             }}
-            QLabel#datetime {{
+            QLabel#header_title {{
+                font-size: 36px;
+                font-weight: 800;
+                color: {self.text_primary};
+                letter-spacing: -0.5px;
+            }}
+            QLabel#header_subtitle {{
                 font-size: 15px;
-                color: #555555;
-                font-weight: 600;
-                line-height: 1.5;
-            }}
-            QFrame#header_card {{
-                background-color: {card_color};
-                border-radius: 12px;
-                padding: 28px 32px;
-                border: 1px solid {border_color};
-            }}
-            QFrame#dashboard_card {{
-                background-color: {card_color};
-                border-radius: 12px;
-                padding: 32px;
-                border: 1px solid {border_color};
+                color: {self.text_secondary};
+                font-weight: 400;
             }}
             QLabel#section_title {{
                 font-size: 20px;
                 font-weight: 700;
-                color: #1a1a1a;
-                padding-bottom: 24px;
+                color: {self.text_primary};
+                padding-bottom: 2px;
             }}
-            QPushButton#tile_primary {{
-                background-color: {accent_color};
-                color: white;
-                font-size: 15px;
-                font-weight: 600;
-                padding: 0px;
-                border-radius: 10px;
+            QLabel#section_subtitle {{
+                font-size: 13px;
+                color: {self.text_secondary};
+                font-weight: 400;
+            }}
+            QLabel#datetime {{
+                font-size: 14px;
+                color: {self.text_secondary};
+                font-weight: 500;
+            }}
+            QFrame {{
+                background-color: transparent;
                 border: none;
             }}
-            QPushButton#tile_primary:hover {{
-                background-color: #246651;
-            }}
-            QPushButton#tile_secondary {{
-                background-color: {secondary_color};
-                color: white;
-                font-size: 15px;
-                font-weight: 600;
-                padding: 0px;
-                border-radius: 10px;
+            QFrame#header {{
+                background-color: transparent;
                 border: none;
-            }}
-            QPushButton#tile_secondary:hover {{
-                background-color: #735a38;
-            }}
-            QPushButton#tile_disabled {{
-                background-color: #f5f5f5;
-                color: #999999;
-                font-size: 15px;
-                font-weight: 600;
                 padding: 0px;
-                border-radius: 10px;
-                border: 1px solid {border_color};
+            }}
+            QFrame#section_card {{
+                background-color: {self.card_bg};
+                border-radius: 14px;
+                padding: 28px;
+                border: none;
             }}
             QPushButton#logout_btn {{
-                background-color: #c84343;
+                background-color: {self.accent_red};
                 color: white;
                 font-weight: 600;
-                padding: 11px 24px;
+                padding: 10px 20px;
                 border-radius: 8px;
                 font-size: 13px;
                 border: none;
             }}
             QPushButton#logout_btn:hover {{
-                background-color: #b03636;
+                background-color: #dc2626;
             }}
-            QLabel#footer_text {{
-                color: #2d7a5f;
-                font-size: 14px;
-                font-weight: 600;
-                background: transparent;
-                text-decoration: none;
-            }}
-            QLabel#footer_text:hover {{
-                color: #246651;
-                text-decoration: underline;
+            QPushButton#logout_btn:pressed {{
+                background-color: #b91c1c;
             }}
         """)
 
-        # Main layout
-        layout = QVBoxLayout()
-        layout.setContentsMargins(40, 32, 40, 32)
-        layout.setSpacing(24)
+        # Main scroll area for responsive design
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # === Header Card ===
-        header_card = QFrame()
-        header_card.setObjectName("header_card")
-        header_layout = QHBoxLayout(header_card)
-        header_layout.setSpacing(24)
+        # === Top Navigation Bar ===
+        nav_frame = QFrame()
+        nav_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.card_bg};
+                border: none;
+                padding: 16px 32px;
+            }}
+        """)
+        nav_layout = QHBoxLayout(nav_frame)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
+        nav_layout.setSpacing(16)
 
-        # Logo - Bigger size for 495x150 resolution
+        # Logo
         logo_label = QLabel()
         logo_path = "assets/logo.png"
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
-            # Scale to 198x60 (40% of original, maintains aspect ratio)
-            pixmap = pixmap.scaled(198, 60, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = pixmap.scaledToWidth(100, Qt.SmoothTransformation)
             logo_label.setPixmap(pixmap)
-            logo_label.setFixedSize(198, 60)
         else:
             logo_label.setText("🏭")
-            logo_label.setStyleSheet("font-size: 52px;")
-            logo_label.setFixedSize(198, 60)
-        header_layout.addWidget(logo_label)
-        
-        # System Title
-        title_layout = QVBoxLayout()
-        title_layout.setSpacing(4)
-        
-        system_title = QLabel("Workshop Management System")
-        system_title.setObjectName("system_title")
-        title_layout.addWidget(system_title)
-        
-        header_layout.addLayout(title_layout)
-        header_layout.addStretch()
-        
-        # Date & Time - Bigger font
+            logo_label.setStyleSheet("font-size: 32px;")
+        nav_layout.addWidget(logo_label)
+
+        # Title and subtitle
+        header_layout = QVBoxLayout()
+        header_layout.setSpacing(4)
+        title = QLabel("Senarath WMS Dashboard")
+        title.setObjectName("header_title")
+        header_layout.addWidget(title)
+
         self.datetime_label = QLabel()
-        self.datetime_label.setObjectName("datetime")
-        self.datetime_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.datetime_label.setObjectName("header_subtitle")
         header_layout.addWidget(self.datetime_label)
-        
+        nav_layout.addLayout(header_layout)
+
+        nav_layout.addStretch()
+
+        # Logout button
+        logout_btn = QPushButton("Logout")
+        logout_btn.setObjectName("logout_btn")
+        logout_btn.setCursor(Qt.PointingHandCursor)
+        logout_btn.clicked.connect(self.logout)
+        logout_btn.setFixedWidth(100)
+        logout_btn.setFixedHeight(36)
+        nav_layout.addWidget(logout_btn)
+
+        main_layout.addWidget(nav_frame)
+
+        # === Main Content ===
+        content_frame = QFrame()
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(32, 32, 32, 32)
+        content_layout.setSpacing(28)
+
+        # === Statistics Section ===
+        stats_title = QLabel("Quick Overview")
+        stats_title.setObjectName("section_title")
+        content_layout.addWidget(stats_title)
+
+        stats_grid = QGridLayout()
+        stats_grid.setSpacing(16)
+        stats_grid.setContentsMargins(0, 0, 0, 0)
+
+        # Get statistics from database
+        total_vehicles, total_drivers, total_jobs = self.get_statistics()
+
+        self.stat1 = StatCard("Total Vehicles", str(total_vehicles), "🚗", self.primary_color)
+        self.stat2 = StatCard("Total Drivers", str(total_drivers), "👥", self.accent_blue)
+        self.stat3 = StatCard("Total Jobs", str(total_jobs), "📋", self.accent_green)
+        self.stat4 = StatCard("System Status", "Active", "✓", self.accent_green)
+
+        stats_grid.addWidget(self.stat1, 0, 0)
+        stats_grid.addWidget(self.stat2, 0, 1)
+        stats_grid.addWidget(self.stat3, 0, 2)
+        stats_grid.addWidget(self.stat4, 0, 3)
+
+        content_layout.addLayout(stats_grid)
+
+        # === Quick Actions Section ===
+        actions_title = QLabel("Quick Actions")
+        actions_title.setObjectName("section_title")
+        content_layout.addWidget(actions_title)
+
+        actions_grid = QGridLayout()
+        actions_grid.setSpacing(16)
+        actions_grid.setContentsMargins(0, 0, 0, 0)
+
+        # Action tiles with professional styling - 6 tiles in 3x2 grid
+        action_new_job = ModernActionTile(
+            "📝", "New Job Card", "Create job entry", self.primary_color
+        )
+        action_new_job.clicked.connect(self.main_window.go_to_jobcard)
+        actions_grid.addWidget(action_new_job, 0, 0)
+
+        action_records = ModernActionTile(
+            "📊", "View Records", "Browse records", self.primary_color
+        )
+        action_records.clicked.connect(self.main_window.go_to_records)
+        actions_grid.addWidget(action_records, 0, 1)
+
+        action_data = ModernActionTile(
+            "⚙️", "Data Manager", "Manage data", self.primary_color
+        )
+        action_data.clicked.connect(self.main_window.go_to_data_manager)
+        actions_grid.addWidget(action_data, 0, 2)
+
+        action_backup = ModernActionTile(
+            "💾", "Backup & Restore", "Secure backup system", self.primary_color
+        )
+        action_backup.clicked.connect(self.main_window.go_to_backup)
+        actions_grid.addWidget(action_backup, 1, 0)
+
+        action_chart = ModernActionTile(
+            "🚚", "Running Chart", "Track status", self.primary_color
+        )
+        action_chart.clicked.connect(self.main_window.go_to_running_chart)
+        actions_grid.addWidget(action_chart, 1, 1)
+
+        action_reports = ModernActionTile(
+            "📈", "Reports", "Export data", self.primary_color
+        )
+        action_reports.clicked.connect(self.main_window.go_to_report)
+        actions_grid.addWidget(action_reports, 1, 2)
+
+        content_layout.addLayout(actions_grid)
+
+        # Add stretch at bottom
+        content_layout.addStretch()
+
+        main_layout.addWidget(content_frame, 1)
+
+        # === Footer ===
+        footer_frame = QFrame()
+        footer_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {self.card_bg};
+                border: none;
+                padding: 16px 32px;
+            }}
+        """)
+        footer_layout = QHBoxLayout(footer_frame)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+
+        footer_text = QLabel("Senarath WMS • Developed by <a href='https://www.google.com/search?q=DrkCyph7' style='color: #2d7a5f; text-decoration: none;'>DrkCyph7</a> • <a href='https://nexcy.lk' style='color: #2d7a5f; text-decoration: none;'>NexCy Technologies</a>")
+        footer_text.setOpenExternalLinks(True)
+        footer_text.setStyleSheet(f"font-size: 13px; color: {self.text_secondary};")
+        footer_layout.addWidget(footer_text)
+        footer_layout.addStretch()
+
+        version_text = QLabel("v1.0")
+        version_text.setStyleSheet(f"font-size: 13px; color: {self.text_secondary}; font-weight: 500;")
+        footer_layout.addWidget(version_text)
+
+        main_layout.addWidget(footer_frame)
+
+        self.setLayout(main_layout)
+
+        # Start datetime and statistics update timer
         self.update_datetime()
+        self.refresh_statistics()
+        
+        # Timer for datetime and statistics (update every 2 seconds for stats, every 1 second for datetime)
         timer = QTimer(self)
         timer.timeout.connect(self.update_datetime)
         timer.start(1000)
         
-        layout.addWidget(header_card)
+        # Timer for statistics (update every 3 seconds)
+        stats_timer = QTimer(self)
+        stats_timer.timeout.connect(self.refresh_statistics)
+        stats_timer.start(3000)
 
-        # === Dashboard Card ===
-        dashboard_card = QFrame()
-        dashboard_card.setObjectName("dashboard_card")
-        dashboard_layout = QVBoxLayout(dashboard_card)
-        dashboard_layout.setSpacing(0)
-        
-        section_title = QLabel("Quick Access")
-        section_title.setObjectName("section_title")
-        dashboard_layout.addWidget(section_title)
-        
-        # Grid for tiles
-        grid = QGridLayout()
-        grid.setSpacing(16)
-        grid.setContentsMargins(0, 0, 0, 0)
+    def get_statistics(self):
+        """Fetch statistics from database"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
 
-        # Row 1 - New Job Card
-        jobcard_btn = QPushButton()
-        jobcard_btn.setObjectName("tile_primary")
-        jobcard_btn.setFixedHeight(130)
-        jobcard_btn.setCursor(Qt.PointingHandCursor)
-        jobcard_btn.clicked.connect(self.main_window.go_to_jobcard)
-        jobcard_layout = QVBoxLayout(jobcard_btn)
-        jobcard_layout.setContentsMargins(20, 20, 20, 20)
-        jobcard_layout.setSpacing(10)
-        
-        icon1 = QLabel("📝")
-        icon1.setStyleSheet("font-size: 40px; color: white; background: transparent;")
-        jobcard_layout.addWidget(icon1)
-        
-        title1 = QLabel("New Job Card")
-        title1.setStyleSheet("font-size: 17px; font-weight: 700; color: white; background: transparent;")
-        jobcard_layout.addWidget(title1)
-        
-        desc1 = QLabel("Create new job entry")
-        desc1.setStyleSheet("font-size: 14px; font-weight: 500; color: white; background: transparent;")
-        jobcard_layout.addWidget(desc1)
-        
-        jobcard_layout.addStretch()
-        grid.addWidget(jobcard_btn, 0, 0)
+            c.execute("SELECT COUNT(*) FROM vehicles")
+            total_vehicles = c.fetchone()[0]
 
-        # Row 1 - Job Card Records
-        records_btn = QPushButton()
-        records_btn.setObjectName("tile_secondary")
-        records_btn.setFixedHeight(130)
-        records_btn.setCursor(Qt.PointingHandCursor)
-        records_btn.clicked.connect(self.main_window.go_to_records)
-        records_layout = QVBoxLayout(records_btn)
-        records_layout.setContentsMargins(20, 20, 20, 20)
-        records_layout.setSpacing(10)
-        
-        icon2 = QLabel("📋")
-        icon2.setStyleSheet("font-size: 40px; color: white; background: transparent;")
-        records_layout.addWidget(icon2)
-        
-        title2 = QLabel("Job Card Records")
-        title2.setStyleSheet("font-size: 17px; font-weight: 700; color: white; background: transparent;")
-        records_layout.addWidget(title2)
-        
-        desc2 = QLabel("View all job records")
-        desc2.setStyleSheet("font-size: 14px; font-weight: 500; color: white; background: transparent;")
-        records_layout.addWidget(desc2)
-        
-        records_layout.addStretch()
-        grid.addWidget(records_btn, 0, 1)
-        
-        # Row 1 - Data Manager
-        data_btn = QPushButton()
-        data_btn.setObjectName("tile_primary")
-        data_btn.setFixedHeight(130)
-        data_btn.setCursor(Qt.PointingHandCursor)
-        data_btn.clicked.connect(self.main_window.go_to_data_manager)
-        data_layout = QVBoxLayout(data_btn)
-        data_layout.setContentsMargins(20, 20, 20, 20)
-        data_layout.setSpacing(10)
-        
-        icon3 = QLabel("🔧")
-        icon3.setStyleSheet("font-size: 40px; color: white; background: transparent;")
-        data_layout.addWidget(icon3)
-        
-        title3 = QLabel("Data Manager")
-        title3.setStyleSheet("font-size: 17px; font-weight: 700; color: white; background: transparent;")
-        data_layout.addWidget(title3)
-        
-        desc3 = QLabel("Manage system data")
-        desc3.setStyleSheet("font-size: 14px; font-weight: 500; color: white; background: transparent;")
-        data_layout.addWidget(desc3)
-        
-        data_layout.addStretch()
-        grid.addWidget(data_btn, 0, 2)
+            c.execute("SELECT COUNT(*) FROM drivers")
+            total_drivers = c.fetchone()[0]
 
-        # Row 2 - Running Chart
-        running_btn = QPushButton()
-        running_btn.setObjectName("tile_secondary")
-        running_btn.setFixedHeight(130)
-        running_btn.setCursor(Qt.PointingHandCursor)
-        running_btn.clicked.connect(self.main_window.go_to_running_chart)
-        running_layout = QVBoxLayout(running_btn)
-        running_layout.setContentsMargins(20, 20, 20, 20)
-        running_layout.setSpacing(10)
-        
-        icon4 = QLabel("🚚")
-        icon4.setStyleSheet("font-size: 40px; color: white; background: transparent;")
-        running_layout.addWidget(icon4)
-        
-        title4 = QLabel("Running Chart")
-        title4.setStyleSheet("font-size: 17px; font-weight: 700; color: white; background: transparent;")
-        running_layout.addWidget(title4)
-        
-        desc4 = QLabel("Track vehicle status")
-        desc4.setStyleSheet("font-size: 14px; font-weight: 500; color: white; background: transparent;")
-        running_layout.addWidget(desc4)
-        
-        running_layout.addStretch()
-        grid.addWidget(running_btn, 1, 0)
-        
-        # Row 2 - Backup & Restore
-        backup_btn = QPushButton()
-        backup_btn.setObjectName("tile_primary")
-        backup_btn.setFixedHeight(130)
-        backup_btn.setCursor(Qt.PointingHandCursor)
-        backup_btn.clicked.connect(self.main_window.go_to_backup)
-        backup_layout = QVBoxLayout(backup_btn)
-        backup_layout.setContentsMargins(20, 20, 20, 20)
-        backup_layout.setSpacing(10)
-        
-        icon5 = QLabel("💾")
-        icon5.setStyleSheet("font-size: 40px; color: white; background: transparent;")
-        backup_layout.addWidget(icon5)
-        
-        title5 = QLabel("Backup & Restore")
-        title5.setStyleSheet("font-size: 17px; font-weight: 700; color: white; background: transparent;")
-        backup_layout.addWidget(title5)
-        
-        desc5 = QLabel("Protect your data")
-        desc5.setStyleSheet("font-size: 14px; font-weight: 500; color: white; background: transparent;")
-        backup_layout.addWidget(desc5)
-        
-        backup_layout.addStretch()
-        grid.addWidget(backup_btn, 1, 1)
+            c.execute("SELECT COUNT(*) FROM job_cards")
+            total_jobs = c.fetchone()[0]
 
-        # Row 2 - Reports (Coming Soon)
-        reports_btn = QPushButton()
-        reports_btn.setObjectName("tile_disabled")
-        reports_btn.setFixedHeight(130)
-        reports_btn.setEnabled(False)
-        reports_layout = QVBoxLayout(reports_btn)
-        reports_layout.setContentsMargins(20, 20, 20, 20)
-        reports_layout.setSpacing(10)
-        
-        icon6 = QLabel("📊")
-        icon6.setStyleSheet("font-size: 40px; color: #999999; background: transparent;")
-        reports_layout.addWidget(icon6)
-        
-        title6 = QLabel("Reports")
-        title6.setStyleSheet("font-size: 17px; font-weight: 700; color: #999999; background: transparent;")
-        reports_layout.addWidget(title6)
-        
-        desc6 = QLabel("Coming soon...")
-        desc6.setStyleSheet("font-size: 14px; font-weight: 500; color: #999999; background: transparent;")
-        reports_layout.addWidget(desc6)
-        
-        reports_layout.addStretch()
-        grid.addWidget(reports_btn, 1, 2)
-
-        dashboard_layout.addLayout(grid)
-        layout.addWidget(dashboard_card)
-
-        # === Footer ===
-        footer_layout = QHBoxLayout()
-        footer_layout.setContentsMargins(8, 28, 8, 0)
-        
-        developer_label = QLabel("Developed by DrkCyph7")
-        developer_label.setObjectName("footer_text")
-        footer_layout.addWidget(developer_label)
-        
-        footer_layout.addStretch()
-        
-        logout_btn = QPushButton("🚪 Logout")
-        logout_btn.setObjectName("logout_btn")
-        logout_btn.setCursor(Qt.PointingHandCursor)
-        logout_btn.clicked.connect(self.logout)
-        logout_btn.setFixedHeight(40)
-        footer_layout.addWidget(logout_btn)
-        
-        layout.addLayout(footer_layout)
-        layout.addStretch()
-        self.setLayout(layout)
+            conn.close()
+            return total_vehicles, total_drivers, total_jobs
+        except Exception as e:
+            print(f"Error fetching statistics: {e}")
+            return 0, 0, 0
 
     def update_datetime(self):
         """Update live date and time"""
         current = QDateTime.currentDateTime()
-        date_str = current.toString("dddd, MMMM d, yyyy")
-        time_str = current.toString("hh:mm:ss AP")
-        self.datetime_label.setText(f"{date_str}\n{time_str}")
+        date_str = current.toString("dddd, MMMM d, yyyy • hh:mm:ss AP")
+        self.datetime_label.setText(date_str)
+
+    def refresh_statistics(self):
+        """Refresh statistics from database in real-time"""
+        total_vehicles, total_drivers, total_jobs = self.get_statistics()
+        self.stat1.update_value(total_vehicles)
+        self.stat2.update_value(total_drivers)
+        self.stat3.update_value(total_jobs)
 
     def logout(self):
         """Handle logout with confirmation"""
@@ -367,6 +420,6 @@ class HomePage(QWidget):
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
-        
+
         if reply == QMessageBox.Yes:
             self.main_window.setCurrentIndex(0)

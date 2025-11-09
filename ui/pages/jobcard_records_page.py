@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QFont
+from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
 
@@ -623,39 +624,59 @@ class JobCardRecordsPage(QWidget):
                 font-family: 'Segoe UI', Arial;
                 font-size: 13px;
             }}
+            QLabel {{
+                background-color: transparent;
+            }}
             QLabel#title {{
                 font-size: 26px;
                 font-weight: 700;
                 color: #1a1a1a;
             }}
+            QLabel#section_label {{
+                font-weight: 500;
+                color: #666;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
             QFrame#filter_card {{
                 background-color: {card_color};
                 border-radius: 8px;
-                padding: 16px;
-                border: 1px solid {border_color};
+                padding: 14px;
+                border: none;
             }}
             QLineEdit, QComboBox, QDateEdit {{
                 background-color: #fafafa;
                 border: 1px solid {border_color};
                 color: {text_color};
-                padding: 7px 10px;
+                padding: 9px 11px;
                 border-radius: 5px;
-                min-height: 30px;
+                min-height: 34px;
+                font-size: 13px;
+                font-weight: 500;
             }}
             QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{
                 border: 2px solid {accent_color};
                 background-color: #ffffff;
+                outline: none;
             }}
             QPushButton {{
                 background-color: {accent_color};
-                border-radius: 6px;
-                padding: 9px 16px;
+                border-radius: 5px;
+                padding: 11px 18px;
                 color: white;
-                font-weight: 600;
+                font-weight: 700;
                 min-height: 36px;
+                border: none;
+                font-size: 13px;
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
             }}
             QPushButton:hover {{
                 background-color: #246651;
+            }}
+            QPushButton:pressed {{
+                background-color: #1f5443;
             }}
             QPushButton#secondary {{
                 background-color: {secondary_color};
@@ -663,25 +684,37 @@ class JobCardRecordsPage(QWidget):
             QPushButton#secondary:hover {{
                 background-color: #735a38;
             }}
+            QPushButton#secondary:pressed {{
+                background-color: #654b31;
+            }}
             QPushButton#danger {{
                 background-color: {danger_color};
             }}
             QPushButton#danger:hover {{
                 background-color: #b03636;
             }}
+            QPushButton#danger:pressed {{
+                background-color: #992e2e;
+            }}
             QPushButton#ghost {{
                 background-color: transparent;
-                color: #555;
-                border: 1px solid #d0d0d0;
+                color: #333;
+                border: 1px solid #ccc;
+                text-transform: none;
+                letter-spacing: 0px;
+                font-weight: 600;
+                font-size: 13px;
             }}
             QPushButton#ghost:hover {{
                 background-color: #f5f5f5;
-                border-color: #bbb;
+                border-color: #999;
+                color: #1a1a1a;
             }}
             QPushButton#nav {{
-                background-color: #8b6f47;
-                padding: 8px 14px;
-                min-height: 32px;
+                background-color: {secondary_color};
+                padding: 10px 16px;
+                min-height: 34px;
+                font-size: 13px;
             }}
             QPushButton#nav:hover {{
                 background-color: #735a38;
@@ -690,14 +723,29 @@ class JobCardRecordsPage(QWidget):
                 background-color: {card_color};
                 border: 1px solid {border_color};
                 color: {text_color};
-                gridline-color: {border_color};
-                border-radius: 8px;
+                gridline-color: #f0f0f0;
+                border-radius: 6px;
+                font-size: 13px;
+            }}
+            QTableWidget::item {{
+                padding: 10px 8px;
+                border: none;
+                color: {text_color};
+            }}
+            QTableWidget::item:selected {{
+                background-color: #e8f4f0;
+                color: {text_color};
+                font-weight: 500;
             }}
             QHeaderView::section {{
                 background-color: {accent_color};
                 color: white;
-                padding: 10px;
+                padding: 10px 8px;
                 border: none;
+                font-weight: 700;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
                 font-weight: 700;
                 font-size: 12px;
             }}
@@ -715,57 +763,47 @@ class JobCardRecordsPage(QWidget):
         """)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(35, 28, 35, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(16)
         
         # === Header: Title and Back Button ===
-        header_layout = QHBoxLayout()
-        title = QLabel("📋 Job Card Records")
-        title.setObjectName("title")
-        title.setAlignment(Qt.AlignLeft)
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        
-        back_btn_top = QPushButton("⬅ Back to Home")
-        back_btn_top.setObjectName("ghost")
-        back_btn_top.setFixedHeight(38)
-        back_btn_top.setCursor(Qt.PointingHandCursor)
+        header_layout, title_label, back_btn_top = create_page_header("📋 Job Card Records")
         back_btn_top.clicked.connect(self.go_back)
-        header_layout.addWidget(back_btn_top)
-        
         layout.addLayout(header_layout)
 
         # === Compact Filter Card ===
         filter_card = QFrame()
         filter_card.setObjectName("filter_card")
         filter_layout = QVBoxLayout(filter_card)
-        filter_layout.setSpacing(12)
+        filter_layout.setContentsMargins(14, 12, 14, 12)
+        filter_layout.setSpacing(10)
         
         # Single row with all filters
         filter_row = QHBoxLayout()
+        filter_row.setSpacing(10)
         
         # Search
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Search job no, company, vehicle, driver...")
-        self.search_input.setMinimumWidth(280)
+        self.search_input.setPlaceholderText("Search job no, company, vehicle, driver...")
+        self.search_input.setMinimumWidth(270)
         filter_row.addWidget(self.search_input, 2)
         
         # Site filter
         self.site_filter = QComboBox()
         self.site_filter.addItem("All Sites")
-        self.site_filter.setMinimumWidth(120)
+        self.site_filter.setMinimumWidth(110)
         filter_row.addWidget(self.site_filter, 1)
         
         # Section filter
         self.section_filter = QComboBox()
         self.section_filter.addItem("All Sections")
-        self.section_filter.setMinimumWidth(120)
+        self.section_filter.setMinimumWidth(110)
         filter_row.addWidget(self.section_filter, 1)
         
         # Date filter type
         self.date_filter_type = QComboBox()
-        self.date_filter_type.addItems(["No Date Filter", "Date Range", "This Month", "Last Month", "Last 3 Months", "Last 6 Months", "This Year"])
-        self.date_filter_type.setMinimumWidth(140)
+        self.date_filter_type.addItems(["All Dates", "Date Range", "This Month", "Last Month", "Last 3 Months", "Last 6 Months", "This Year"])
+        self.date_filter_type.setMinimumWidth(130)
         self.date_filter_type.currentTextChanged.connect(self.on_date_filter_changed)
         filter_row.addWidget(self.date_filter_type, 1)
         
@@ -774,25 +812,29 @@ class JobCardRecordsPage(QWidget):
         self.start_date.setCalendarPopup(True)
         self.start_date.setDisplayFormat("yyyy-MM-dd")
         self.start_date.setVisible(False)
-        self.start_date.setMinimumWidth(130)
+        self.start_date.setMinimumWidth(120)
+        self.start_date.setMaximumWidth(120)
         filter_row.addWidget(self.start_date)
         
         self.end_date = QDateEdit(QDate.currentDate())
         self.end_date.setCalendarPopup(True)
         self.end_date.setDisplayFormat("yyyy-MM-dd")
         self.end_date.setVisible(False)
-        self.end_date.setMinimumWidth(130)
+        self.end_date.setMinimumWidth(120)
+        self.end_date.setMaximumWidth(120)
         filter_row.addWidget(self.end_date)
         
         # Filter buttons
         btn_apply = QPushButton("Apply")
+        btn_apply.setFixedHeight(34)
         btn_apply.setFixedWidth(90)
         btn_apply.clicked.connect(self.apply_filters)
         filter_row.addWidget(btn_apply)
         
         btn_clear = QPushButton("Clear")
         btn_clear.setObjectName("secondary")
-        btn_clear.setFixedWidth(80)
+        btn_clear.setFixedHeight(34)
+        btn_clear.setFixedWidth(85)
         btn_clear.clicked.connect(self.clear_filters)
         filter_row.addWidget(btn_clear)
         
@@ -801,15 +843,20 @@ class JobCardRecordsPage(QWidget):
 
         # === Navigation & Action Buttons ===
         action_bar = QHBoxLayout()
+        action_bar.setSpacing(10)
         
         # Navigation buttons
         btn_new_job = QPushButton("➕ New Job Card")
         btn_new_job.setObjectName("nav")
+        btn_new_job.setFixedHeight(38)
+        btn_new_job.setMinimumWidth(150)
         btn_new_job.setCursor(Qt.PointingHandCursor)
         btn_new_job.clicked.connect(self.go_to_job_card)
         
         btn_data_manager = QPushButton("📊 Data Manager")
         btn_data_manager.setObjectName("nav")
+        btn_data_manager.setFixedHeight(38)
+        btn_data_manager.setMinimumWidth(150)
         btn_data_manager.setCursor(Qt.PointingHandCursor)
         btn_data_manager.clicked.connect(self.go_to_data_manager)
         
@@ -819,20 +866,28 @@ class JobCardRecordsPage(QWidget):
         
         # Record actions
         btn_view = QPushButton("👁 View")
+        btn_view.setFixedHeight(38)
+        btn_view.setMinimumWidth(100)
         btn_view.setCursor(Qt.PointingHandCursor)
         btn_view.clicked.connect(self.view_details)
         
         btn_edit = QPushButton("✏ Edit")
         btn_edit.setObjectName("secondary")
+        btn_edit.setFixedHeight(38)
+        btn_edit.setMinimumWidth(100)
         btn_edit.setCursor(Qt.PointingHandCursor)
         btn_edit.clicked.connect(self.edit_record)
         
         btn_delete = QPushButton("🗑 Delete")
         btn_delete.setObjectName("danger")
+        btn_delete.setFixedHeight(38)
+        btn_delete.setMinimumWidth(100)
         btn_delete.setCursor(Qt.PointingHandCursor)
         btn_delete.clicked.connect(self.delete_selected)
         
         btn_refresh = QPushButton("🔄 Refresh")
+        btn_refresh.setFixedHeight(38)
+        btn_refresh.setMinimumWidth(100)
         btn_refresh.setCursor(Qt.PointingHandCursor)
         btn_refresh.clicked.connect(self.load_records)
 

@@ -3,58 +3,87 @@ from PySide6.QtWidgets import (
     QPushButton, QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap
+import os
+from ui.theme import ColorPalette, Typography, Spacing, Styles
 
 
 class LoginPage(QWidget):
+    # PIN credentials
+    CORRECT_PIN = "2345"
+    
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
 
-        # === UI Colors (No Blue) ===
-        bg_color = "#f5f5f0"
+        # === UI Colors - Professional Theme ===
+        bg_color = "#ffffff"
         card_color = "#ffffff"
-        accent_color = "#2d7a5f"
-        text_color = "#2c2c2c"
-        border_color = "#d4d4d4"
+        accent_color = "#1e5f4a"
+        text_color = "#212529"
+        border_color = "#dee2e6"
+        success_color = "#28a745"
 
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {bg_color};
                 color: {text_color};
-                font-family: 'Segoe UI', Arial;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }}
+            QLabel {{
+                background-color: transparent;
             }}
             QLabel#title {{
-                font-size: 36px;
+                font-size: 28px;
                 font-weight: bold;
-                color: {accent_color};
-                padding: 20px;
+                color: {text_color};
+                background-color: transparent;
+                padding: 15px 0px 5px 0px;
             }}
             QLabel#subtitle {{
-                font-size: 16px;
-                color: #666;
-                padding-bottom: 40px;
+                font-size: 13px;
+                color: #6c757d;
+                background-color: transparent;
+                padding-bottom: 30px;
+                font-weight: 400;
             }}
             QLabel#field_label {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 600;
                 color: {text_color};
-                padding: 5px 0px;
+                background-color: transparent;
+                padding: 8px 0px 5px 0px;
+            }}
+            QLabel#footer_text {{
+                font-size: 11px;
+                color: #6c757d;
+                background-color: transparent;
+                padding: 0px;
+                margin: 0px;
+            }}
+            QLabel#footer_link {{
+                font-size: 11px;
+                color: {accent_color};
+                background-color: transparent;
+                text-decoration: underline;
+                padding: 0px;
+                margin: 0px;
             }}
             QFrame#login_card {{
                 background-color: {card_color};
-                border-radius: 16px;
-                padding: 50px;
+                border-radius: 12px;
+                padding: 48px;
                 border: 1px solid {border_color};
             }}
             QLineEdit {{
-                background-color: #fafafa;
+                background-color: #ffffff;
                 border: 1px solid {border_color};
-                border-radius: 8px;
-                padding: 14px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 12px 14px;
+                font-size: 16px;
                 color: {text_color};
-                min-height: 20px;
+                min-height: 18px;
+                letter-spacing: 2px;
             }}
             QLineEdit:focus {{
                 border: 2px solid {accent_color};
@@ -63,72 +92,78 @@ class LoginPage(QWidget):
             QPushButton#login_btn {{
                 background-color: {accent_color};
                 color: white;
-                font-size: 16px;
+                font-size: 15px;
                 font-weight: 600;
-                padding: 16px;
-                border-radius: 8px;
-                min-height: 50px;
+                padding: 14px;
+                border-radius: 6px;
+                min-height: 45px;
+                border: none;
             }}
             QPushButton#login_btn:hover {{
-                background-color: #246651;
+                background-color: #184d3e;
             }}
             QPushButton#login_btn:pressed {{
-                background-color: #1d5240;
+                background-color: #0f3829;
             }}
         """)
 
-        # Main layout
+        # Main layout with center alignment
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setAlignment(Qt.AlignCenter)
 
         # Login card
         login_card = QFrame()
         login_card.setObjectName("login_card")
-        login_card.setFixedWidth(450)
+        login_card.setFixedWidth(420)
         card_layout = QVBoxLayout(login_card)
-        card_layout.setSpacing(20)
+        card_layout.setSpacing(18)
 
-        # Logo/Title section
-        title_layout = QVBoxLayout()
-        title_layout.setAlignment(Qt.AlignCenter)
+        # Logo section
+        logo_layout = QVBoxLayout()
+        logo_layout.setAlignment(Qt.AlignCenter)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
         
-        logo_label = QLabel("🏭")
-        logo_label.setStyleSheet("font-size: 64px; padding: 10px;")
-        logo_label.setAlignment(Qt.AlignCenter)
-        title_layout.addWidget(logo_label)
+        # Load and display logo
+        logo_path = os.path.join(os.path.dirname(__file__), "../../assets/logo.png")
+        if os.path.exists(logo_path):
+            logo_label = QLabel()
+            pixmap = QPixmap(logo_path)
+            # Scale logo to 120x120 pixels
+            pixmap = pixmap.scaledToWidth(120, Qt.SmoothTransformation)
+            logo_label.setPixmap(pixmap)
+            logo_label.setAlignment(Qt.AlignCenter)
+            logo_layout.addWidget(logo_label)
+            logo_layout.addSpacing(15)
+        
+        card_layout.addLayout(logo_layout)
 
-        title = QLabel("Senarath Workshop")
+        # Title section
+        title = QLabel("Senarath WMS")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
-        title_layout.addWidget(title)
+        card_layout.addWidget(title)
 
-        subtitle = QLabel("Workshop Management System")
+        subtitle = QLabel("System Access")
         subtitle.setObjectName("subtitle")
         subtitle.setAlignment(Qt.AlignCenter)
-        title_layout.addWidget(subtitle)
+        card_layout.addWidget(subtitle)
 
-        card_layout.addLayout(title_layout)
+        # PIN field
+        pin_label = QLabel("Enter PIN")
+        pin_label.setObjectName("field_label")
+        card_layout.addWidget(pin_label)
 
-        # Username field
-        username_label = QLabel("Username")
-        username_label.setObjectName("field_label")
-        card_layout.addWidget(username_label)
+        self.pin_input = QLineEdit()
+        self.pin_input.setPlaceholderText("••••")
+        self.pin_input.setEchoMode(QLineEdit.Password)
+        self.pin_input.setAlignment(Qt.AlignCenter)
+        self.pin_input.setMaxLength(4)
+        self.pin_input.returnPressed.connect(self.login)
+        card_layout.addWidget(self.pin_input)
 
-        self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter your username")
-        self.username_input.returnPressed.connect(self.login)
-        card_layout.addWidget(self.username_input)
-
-        # Password field
-        password_label = QLabel("Password")
-        password_label.setObjectName("field_label")
-        card_layout.addWidget(password_label)
-
-        self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter your password")
-        self.password_input.setEchoMode(QLineEdit.Password)
-        self.password_input.returnPressed.connect(self.login)
-        card_layout.addWidget(self.password_input)
+        # Add spacing
+        card_layout.addSpacing(10)
 
         # Login button
         login_btn = QPushButton("Login")
@@ -136,27 +171,38 @@ class LoginPage(QWidget):
         login_btn.clicked.connect(self.login)
         card_layout.addWidget(login_btn)
 
-        # Info text
-        info_label = QLabel("Default: admin / admin")
-        info_label.setStyleSheet("color: #888; font-size: 12px; padding-top: 10px;")
-        info_label.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(info_label)
-
         main_layout.addWidget(login_card)
+
+        # Footer with developer info
+        footer_layout = QVBoxLayout()
+        footer_layout.setContentsMargins(0, 25, 0, 15)
+        footer_layout.setAlignment(Qt.AlignCenter)
+        footer_layout.setSpacing(3)
+
+        # System name with developer and company credits
+        dev_label = QLabel("Senarath WMS • Developed by <a href='https://www.google.com/search?q=DrkCyph7' style='color: #1e5f4a; text-decoration: none;'>DrkCyph7</a> • <a href='https://nexcy.lk' style='color: #1e5f4a; text-decoration: none;'>NexCy Technologies</a>")
+        dev_label.setObjectName("footer_text")
+        dev_label.setAlignment(Qt.AlignCenter)
+        dev_label.setOpenExternalLinks(True)
+        footer_layout.addWidget(dev_label)
+
+        main_layout.addLayout(footer_layout)
         self.setLayout(main_layout)
+        
+        # Set focus to PIN input
+        self.pin_input.setFocus()
 
     def login(self):
-        username = self.username_input.text().strip()
-        password = self.password_input.text().strip()
+        pin = self.pin_input.text().strip()
 
-        # Simple authentication (in production, use proper authentication)
-        if username == "admin" and password == "admin":
+        # Simple PIN authentication
+        if pin == self.CORRECT_PIN:
             self.main_window.go_to_home()
         else:
             QMessageBox.warning(
                 self,
-                "Login Failed",
-                "Invalid username or password.\n\nPlease try again."
+                "Invalid PIN",
+                "The PIN you entered is incorrect.\n\nPlease try again."
             )
-            self.password_input.clear()
-            self.password_input.setFocus()
+            self.pin_input.clear()
+            self.pin_input.setFocus()

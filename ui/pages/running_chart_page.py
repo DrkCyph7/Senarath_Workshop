@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFrame
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+from ui.theme import ColorPalette, Typography, Spacing, Styles
 
 
 class RunningChartPage(QWidget):

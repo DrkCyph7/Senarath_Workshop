@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QFont
+from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
 
@@ -16,55 +17,55 @@ class SparePartDialog(QDialog):
         self.setWindowTitle("Add/Edit Spare Part")
         self.setMinimumWidth(480)
         
-        # Modern dialog styling
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #2c2c2c;
-                font-weight: 600;
-                font-size: 13px;
+        # Modern dialog styling using theme
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {ColorPalette.CARD_BG};
+            }}
+            QLabel {{
+                color: {ColorPalette.TEXT_PRIMARY};
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+                font-size: {Typography.SIZE_SMALL}px;
                 background: transparent;
-            }
-            QLineEdit, QTextEdit {
+            }}
+            QLineEdit, QTextEdit {{
                 background-color: #fafafa;
-                border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 8px 10px;
-                font-size: 13px;
-            }
-            QLineEdit:focus, QTextEdit:focus {
-                border: 2px solid #2d7a5f;
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                padding: {Spacing.PADDING_SMALL}px {Spacing.PADDING_MEDIUM}px;
+                font-size: {Typography.SIZE_SMALL}px;
+            }}
+            QLineEdit:focus, QTextEdit:focus {{
+                border: 2px solid {ColorPalette.ACCENT_PRIMARY};
                 background-color: #ffffff;
-            }
-            QTextEdit {
+            }}
+            QTextEdit {{
                 min-height: 80px;
-            }
-            QDialogButtonBox QPushButton {
-                background-color: #2d7a5f;
+            }}
+            QDialogButtonBox QPushButton {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 9px 18px;
-                font-weight: 600;
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+                padding: {Spacing.PADDING_SMALL}px 18px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
                 min-width: 75px;
-            }
-            QDialogButtonBox QPushButton:hover {
-                background-color: #246651;
-            }
-            QDialogButtonBox QPushButton[text="Cancel"] {
+            }}
+            QDialogButtonBox QPushButton:hover {{
+                opacity: 0.9;
+            }}
+            QDialogButtonBox QPushButton[text="Cancel"] {{
                 background-color: #e8e8e8;
                 color: #333;
-            }
-            QDialogButtonBox QPushButton[text="Cancel"]:hover {
+            }}
+            QDialogButtonBox QPushButton[text="Cancel"]:hover {{
                 background-color: #d5d5d5;
-            }
+            }}
         """)
         
         layout = QVBoxLayout()
-        layout.setSpacing(14)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(Spacing.MARGIN_LARGE)
+        layout.setContentsMargins(Spacing.PADDING_XL, Spacing.PADDING_XL, Spacing.PADDING_XL, Spacing.PADDING_XL)
         
         # Title
         title = QLabel("🔧 Spare Part Details")
@@ -184,21 +185,23 @@ class JobCardPage(QWidget):
             QLabel#page_title {{
                 font-weight: 700;
                 color: #1a1a1a;
-                font-size: 26px;
+                font-size: 24px;
                 background: transparent;
             }}
             QLabel#section_title {{
                 font-weight: 700;
                 color: {accent_color};
-                font-size: 15px;
-                padding: 0px 0px 10px 0px;
+                font-size: 14px;
+                padding: 0px 0px 12px 0px;
                 background: transparent;
             }}
             QLabel#field_label {{
-                font-weight: 600;
-                color: #555555;
-                font-size: 12px;
+                font-weight: 500;
+                color: #666666;
+                font-size: 11px;
                 background: transparent;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }}
             QLabel#total_label {{
                 font-weight: 700;
@@ -208,34 +211,36 @@ class JobCardPage(QWidget):
             }}
             QFrame#card {{
                 background-color: {card_color};
-                border-radius: 10px;
-                padding: 20px;
-                border: 1px solid {border_color};
+                border-radius: 8px;
+                padding: 18px;
+                border: none;
             }}
             QLineEdit, QDateEdit, QComboBox {{
                 background-color: {input_bg};
                 border: 1px solid {border_color};
-                border-radius: 5px;
-                padding: 7px 10px;
-                min-height: 28px;
-                font-size: 13px;
+                border-radius: 6px;
+                padding: 8px 11px;
+                min-height: 32px;
+                font-size: 12px;
             }}
             QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{
                 border: 2px solid {accent_color};
                 background-color: {input_focus_bg};
+                outline: none;
             }}
             QLineEdit:read-only {{
-                background-color: #f0f0f0;
+                background-color: #f8f8f8;
                 color: #666666;
-                font-weight: 600;
+                font-weight: 500;
+                border: 1px solid #efefef;
             }}
             QTextEdit {{
                 background-color: {input_bg};
                 border: 1px solid {border_color};
-                border-radius: 5px;
+                border-radius: 6px;
                 padding: 10px;
-                min-height: 90px;
-                font-size: 13px;
+                min-height: 80px;
+                font-size: 12px;
             }}
             QTextEdit:focus {{
                 border: 2px solid {accent_color};
@@ -244,32 +249,38 @@ class JobCardPage(QWidget):
             QComboBox::drop-down {{
                 border: none;
                 padding-right: 6px;
+                width: 20px;
             }}
             QComboBox::down-arrow {{
                 image: none;
                 border-left: 4px solid transparent;
                 border-right: 4px solid transparent;
-                border-top: 5px solid #666;
-                margin-right: 6px;
+                border-top: 5px solid #999;
+                margin-right: 4px;
             }}
             QPushButton {{
                 border: none;
                 border-radius: 6px;
                 font-weight: 600;
-                font-size: 13px;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
             }}
             QPushButton#primary {{
                 background-color: {accent_color};
                 color: white;
-                padding: 10px 20px;
+                padding: 11px 22px;
             }}
             QPushButton#primary:hover {{
                 background-color: #246651;
             }}
+            QPushButton#primary:pressed {{
+                background-color: #1f5443;
+            }}
             QPushButton#secondary {{
                 background-color: {secondary_color};
                 color: white;
-                padding: 8px 16px;
+                padding: 9px 16px;
             }}
             QPushButton#secondary:hover {{
                 background-color: #735a38;
@@ -277,7 +288,7 @@ class JobCardPage(QWidget):
             QPushButton#muted {{
                 background-color: #e8e8e8;
                 color: #333;
-                padding: 8px 16px;
+                padding: 9px 16px;
             }}
             QPushButton#muted:hover {{
                 background-color: #d5d5d5;
@@ -285,31 +296,34 @@ class JobCardPage(QWidget):
             QPushButton#danger {{
                 background-color: #c84343;
                 color: white;
-                padding: 8px 16px;
+                padding: 9px 16px;
             }}
             QPushButton#danger:hover {{
                 background-color: #b03636;
             }}
             QPushButton#ghost {{
                 background-color: transparent;
-                color: #555;
+                color: #666;
                 border: 1px solid #d0d0d0;
                 padding: 9px 18px;
+                text-transform: none;
+                letter-spacing: 0px;
             }}
             QPushButton#ghost:hover {{
-                background-color: #f5f5f5;
+                background-color: #fafafa;
                 border-color: #bbb;
             }}
             QTableWidget {{
                 background-color: {card_color};
                 border: 1px solid {border_color};
                 border-radius: 6px;
-                gridline-color: {border_color};
-                font-size: 13px;
+                gridline-color: #f0f0f0;
+                font-size: 12px;
             }}
             QTableWidget::item {{
                 padding: 8px;
                 background: transparent;
+                border: none;
             }}
             QTableWidget::item:selected {{
                 background-color: #e8f4f0;
@@ -318,23 +332,25 @@ class JobCardPage(QWidget):
             QHeaderView::section {{
                 background-color: {accent_color};
                 color: white;
-                padding: 10px;
+                padding: 10px 8px;
                 border: none;
                 font-weight: 700;
-                font-size: 12px;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
             }}
             QScrollBar:vertical {{
-                background: #f0f0f0;
-                width: 9px;
+                background: #f5f5f5;
+                width: 8px;
                 border-radius: 4px;
             }}
             QScrollBar::handle:vertical {{
-                background: #c0c0c0;
+                background: #bfbfbf;
                 border-radius: 4px;
                 min-height: 20px;
             }}
             QScrollBar::handle:vertical:hover {{
-                background: #a0a0a0;
+                background: #9f9f9f;
             }}
         """)
 
@@ -348,35 +364,25 @@ class JobCardPage(QWidget):
         root_layout.setSpacing(20)
 
         # === Page Title with Back Button ===
-        header_layout = QHBoxLayout()
-        title = QLabel("📝 Job Card Entry")
-        title.setObjectName("page_title")
-        title.setAlignment(Qt.AlignLeft)
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        
-        back_btn_top = QPushButton("⬅ Back to Home")
-        back_btn_top.setObjectName("ghost")
-        back_btn_top.setFixedHeight(38)
-        back_btn_top.setCursor(Qt.PointingHandCursor)
+        header_layout, title_label, back_btn_top = create_page_header("📝 Job Card Entry")
         back_btn_top.clicked.connect(lambda: self.parent.go_to_home() if self.parent else None)
-        header_layout.addWidget(back_btn_top)
-        
         root_layout.addLayout(header_layout)
 
         # === Basic Information Card ===
         basic_card = QFrame()
         basic_card.setObjectName("card")
         basic_layout = QVBoxLayout(basic_card)
-        basic_layout.setSpacing(16)
+        basic_layout.setSpacing(14)
         
         basic_title = QLabel("📋 Basic Information")
         basic_title.setObjectName("section_title")
         basic_layout.addWidget(basic_title)
         
         grid = QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(12)
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(14)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
         # === Create labels with consistent styling ===
         def create_label(text):
@@ -386,8 +392,8 @@ class JobCardPage(QWidget):
 
         # === Inputs ===
         self.job_no_input = QLineEdit()
-        self.job_no_input.setReadOnly(True)
         self.job_no_input.setText(self.generate_job_number())
+        self.job_no_input.setPlaceholderText("Auto-generated or enter custom job number")
 
         self.driver_input = QComboBox()
         self.company_no_input = QComboBox()
@@ -401,56 +407,57 @@ class JobCardPage(QWidget):
         
         self.make_input = QLineEdit()
         self.make_input.setReadOnly(True)
-        self.make_input.setPlaceholderText("Auto-filled from vehicle")
+        self.make_input.setPlaceholderText("Auto-filled")
 
         self.hr_km_input = QLineEdit()
-        self.hr_km_input.setPlaceholderText("e.g. 12450 km or 48 hr")
+        self.hr_km_input.setPlaceholderText("e.g. 12450 km")
 
         self.model_input = QLineEdit()
         self.model_input.setReadOnly(True)
-        self.model_input.setPlaceholderText("Auto-filled from vehicle")
+        self.model_input.setPlaceholderText("Auto-filled")
 
         self.date_input = QDateEdit(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
         self.date_input.setDisplayFormat("yyyy-MM-dd")
+        self.date_input.dateChanged.connect(self.on_date_changed)  # Update job no when date changes
 
         self.type_input = QLineEdit()
         self.type_input.setReadOnly(True)
-        self.type_input.setPlaceholderText("Auto-filled from vehicle")
+        self.type_input.setPlaceholderText("Auto-filled")
 
         self.end_date_input = QDateEdit(QDate.currentDate())
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("yyyy-MM-dd")
 
-        # === Grid layout - New Order ===
-        grid.addWidget(create_label("Job No:"), 0, 0)
+        # === Grid layout - Optimized Order ===
+        grid.addWidget(create_label("Job No"), 0, 0)
         grid.addWidget(self.job_no_input, 0, 1)
-        grid.addWidget(create_label("Driver Name:"), 0, 2)
+        grid.addWidget(create_label("Driver Name"), 0, 2)
         grid.addWidget(self.driver_input, 0, 3)
 
-        grid.addWidget(create_label("Company No:"), 1, 0)
+        grid.addWidget(create_label("Company No"), 1, 0)
         grid.addWidget(self.company_no_input, 1, 1)
-        grid.addWidget(create_label("Site:"), 1, 2)
+        grid.addWidget(create_label("Site"), 1, 2)
         grid.addWidget(self.site_input, 1, 3)
 
-        grid.addWidget(create_label("Vehicle No:"), 2, 0)
+        grid.addWidget(create_label("Vehicle No"), 2, 0)
         grid.addWidget(self.vehicle_input, 2, 1)
-        grid.addWidget(create_label("Section:"), 2, 2)
+        grid.addWidget(create_label("Section"), 2, 2)
         grid.addWidget(self.section_input, 2, 3)
 
-        grid.addWidget(create_label("Make:"), 3, 0)
+        grid.addWidget(create_label("Make"), 3, 0)
         grid.addWidget(self.make_input, 3, 1)
-        grid.addWidget(create_label("Hr/Km Reading:"), 3, 2)
+        grid.addWidget(create_label("Hr/Km Reading"), 3, 2)
         grid.addWidget(self.hr_km_input, 3, 3)
 
-        grid.addWidget(create_label("Model:"), 4, 0)
+        grid.addWidget(create_label("Model"), 4, 0)
         grid.addWidget(self.model_input, 4, 1)
-        grid.addWidget(create_label("Start Date:"), 4, 2)
+        grid.addWidget(create_label("Start Date"), 4, 2)
         grid.addWidget(self.date_input, 4, 3)
 
-        grid.addWidget(create_label("Type:"), 5, 0)
+        grid.addWidget(create_label("Type"), 5, 0)
         grid.addWidget(self.type_input, 5, 1)
-        grid.addWidget(create_label("End Date:"), 5, 2)
+        grid.addWidget(create_label("End Date"), 5, 2)
         grid.addWidget(self.end_date_input, 5, 3)
 
         basic_layout.addLayout(grid)
@@ -460,7 +467,7 @@ class JobCardPage(QWidget):
         desc_card = QFrame()
         desc_card.setObjectName("card")
         desc_layout = QVBoxLayout(desc_card)
-        desc_layout.setSpacing(14)
+        desc_layout.setSpacing(12)
         
         desc_title = QLabel("📝 Job Description")
         desc_title.setObjectName("section_title")
@@ -476,17 +483,19 @@ class JobCardPage(QWidget):
         spare_card = QFrame()
         spare_card.setObjectName("card")
         spare_layout = QVBoxLayout(spare_card)
-        spare_layout.setSpacing(14)
+        spare_layout.setSpacing(12)
         
         spare_header = QHBoxLayout()
-        spare_title = QLabel("🔧 Spare Parts & Materials Used")
+        spare_header.setSpacing(10)
+        spare_title = QLabel("🔧 Spare Parts & Materials")
         spare_title.setObjectName("section_title")
         spare_header.addWidget(spare_title)
         spare_header.addStretch()
         
         add_part_btn = QPushButton("+ Add Part")
         add_part_btn.setObjectName("secondary")
-        add_part_btn.setFixedHeight(34)
+        add_part_btn.setFixedHeight(32)
+        add_part_btn.setMaximumWidth(120)
         add_part_btn.setCursor(Qt.PointingHandCursor)
         add_part_btn.clicked.connect(self.add_spare_part)
         spare_header.addWidget(add_part_btn)
@@ -496,11 +505,11 @@ class JobCardPage(QWidget):
         # Spare parts table
         self.spare_table = QTableWidget()
         self.spare_table.setColumnCount(6)
-        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Unit Price", "Total"])
+        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Total"])
         self.spare_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.spare_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.spare_table.setMinimumHeight(200)
-        self.spare_table.setMaximumHeight(280)
+        self.spare_table.setMinimumHeight(180)
+        self.spare_table.setMaximumHeight(260)
         self.spare_table.setSelectionBehavior(QTableWidget.SelectRows)
         spare_layout.addWidget(self.spare_table)
         
@@ -509,21 +518,25 @@ class JobCardPage(QWidget):
         total_layout.addStretch()
         self.grand_total_label = QLabel("Grand Total: Rs. 0.00")
         self.grand_total_label.setObjectName("total_label")
-        self.grand_total_label.setStyleSheet("font-size: 16px; padding: 10px; background-color: #e8f4f0; border-radius: 5px;")
+        self.grand_total_label.setStyleSheet("font-size: 13px; padding: 8px 12px; background-color: #e8f4f0; border-radius: 6px;")
         total_layout.addWidget(self.grand_total_label)
         spare_layout.addLayout(total_layout)
         
         # Spare parts action buttons
         spare_btn_layout = QHBoxLayout()
-        edit_part_btn = QPushButton("✏️ Edit Selected")
+        spare_btn_layout.setSpacing(8)
+        
+        edit_part_btn = QPushButton("✏️ Edit")
         edit_part_btn.setObjectName("muted")
         edit_part_btn.setFixedHeight(32)
+        edit_part_btn.setMaximumWidth(100)
         edit_part_btn.setCursor(Qt.PointingHandCursor)
         edit_part_btn.clicked.connect(self.edit_spare_part)
         
-        delete_part_btn = QPushButton("🗑️ Delete Selected")
+        delete_part_btn = QPushButton("🗑️ Delete")
         delete_part_btn.setObjectName("danger")
         delete_part_btn.setFixedHeight(32)
+        delete_part_btn.setMaximumWidth(100)
         delete_part_btn.setCursor(Qt.PointingHandCursor)
         delete_part_btn.clicked.connect(self.delete_spare_part)
         
@@ -536,17 +549,19 @@ class JobCardPage(QWidget):
 
         # === Action Buttons ===
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(8)
         
         save_btn = QPushButton("💾 Save Job Card")
         save_btn.setObjectName("primary")
-        save_btn.setFixedHeight(40)
+        save_btn.setFixedHeight(38)
+        save_btn.setMinimumWidth(180)
         save_btn.setCursor(Qt.PointingHandCursor)
         save_btn.clicked.connect(self.save_job_card)
 
         clear_btn = QPushButton("🧹 Clear All")
         clear_btn.setObjectName("muted")
-        clear_btn.setFixedHeight(40)
+        clear_btn.setFixedHeight(38)
+        clear_btn.setMinimumWidth(120)
         clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.clicked.connect(self.clear_all_fields)
 
@@ -567,6 +582,9 @@ class JobCardPage(QWidget):
         self.refresh_dropdowns()
 
     def refresh_dropdowns(self):
+        # Refresh job number in real-time
+        self.job_no_input.setText(self.generate_job_number())
+        
         cur = self.conn.cursor()
 
         # Vehicles
@@ -644,16 +662,31 @@ class JobCardPage(QWidget):
             self.model_input.setText(row[1] or "")
             self.type_input.setText(row[2] or "")
 
+    def on_date_changed(self):
+        """Update job number when start date changes"""
+        self.job_no_input.setText(self.generate_job_number())
+
     def generate_job_number(self):
         cur = self.conn.cursor()
-        cur.execute("SELECT job_no FROM job_cards ORDER BY id DESC LIMIT 1")
+        # Use start date if available, otherwise use current date
+        if hasattr(self, 'date_input'):
+            start_date = self.date_input.date()
+        else:
+            start_date = QDate.currentDate()
+        
+        yy = start_date.toString("yy")
+        mm = start_date.toString("MM")
+        
+        # Find the maximum job number for the selected month/year
+        cur.execute("SELECT job_no FROM job_cards WHERE job_no LIKE ? ORDER BY job_no DESC LIMIT 1", 
+                   (f"SEN/DO/{yy}{mm}%",))
         last_job = cur.fetchone()
-        today = QDate.currentDate()
-        yy = today.toString("yy")
-        mm = today.toString("MM")
 
-        if last_job and last_job[0].startswith(f"SEN/DO/{yy}{mm}"):
-            next_num = int(last_job[0][-3:]) + 1
+        if last_job:
+            try:
+                next_num = int(last_job[0][-3:]) + 1
+            except (ValueError, IndexError):
+                next_num = 1
         else:
             next_num = 1
 
@@ -696,8 +729,8 @@ class JobCardPage(QWidget):
 
     def refresh_spare_table(self):
         self.spare_table.setRowCount(len(self.spare_parts_data))
-        self.spare_table.setColumnCount(7)
-        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Unit Price", "Total"])
+        self.spare_table.setColumnCount(6)
+        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Total"])
         
         grand_total = 0.0
         
@@ -707,8 +740,7 @@ class JobCardPage(QWidget):
             self.spare_table.setItem(row_idx, 2, QTableWidgetItem(part.get('ref_no', '')))
             self.spare_table.setItem(row_idx, 3, QTableWidgetItem(part.get('quantity', '')))
             self.spare_table.setItem(row_idx, 4, QTableWidgetItem(part.get('unit', '')))
-            self.spare_table.setItem(row_idx, 5, QTableWidgetItem(part.get('unit_price', '')))
-            self.spare_table.setItem(row_idx, 6, QTableWidgetItem(part.get('total', '')))
+            self.spare_table.setItem(row_idx, 5, QTableWidgetItem(part.get('total', '')))
             
             try:
                 total = float(part.get('total', 0))

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
 
@@ -100,35 +101,52 @@ class DataManagerPage(QWidget):
                 font-family: 'Segoe UI', Arial;
                 font-size: 13px;
             }}
+            QLabel {{
+                background-color: transparent;
+            }}
             QLabel#title {{
-                font-size: 22px;
-                font-weight: bold;
+                font-size: 26px;
+                font-weight: 700;
                 color: #1a1a1a;
+            }}
+            QLabel#section_title {{
+                font-size: 14px;
+                font-weight: 600;
+                color: #555;
             }}
             QFrame#card {{
                 background-color: {card_color};
-                border-radius: 10px;
-                padding: 20px;
-                border: 1px solid {border_color};
+                border-radius: 8px;
+                padding: 16px;
+                border: none;
             }}
             QPushButton {{
                 background-color: {accent_color};
                 color: white;
-                font-weight: 600;
+                font-weight: 700;
                 padding: 10px 18px;
-                border-radius: 7px;
+                border-radius: 6px;
                 min-height: 36px;
+                font-size: 13px;
+                border: none;
             }}
             QPushButton:hover {{
                 background-color: #246651;
             }}
+            QPushButton:pressed {{
+                background-color: #1f5443;
+            }}
             QPushButton#tab {{
-                background-color: #e8e8e8;
-                color: #333;
-                padding: 10px 20px;
+                background-color: #f0f0f0;
+                color: #666;
+                padding: 11px 18px;
+                font-weight: 600;
+                min-height: 38px;
+                font-size: 13px;
+                border-radius: 6px;
             }}
             QPushButton#tab:hover {{
-                background-color: #d5d5d5;
+                background-color: #e5e5e5;
             }}
             QPushButton#tab_active {{
                 background-color: {accent_color};
@@ -148,61 +166,72 @@ class DataManagerPage(QWidget):
             }}
             QPushButton#ghost {{
                 background-color: transparent;
-                color: #444;
+                color: #333;
                 border: 1px solid #ccc;
+                font-weight: 600;
+                font-size: 13px;
+                text-transform: none;
+                letter-spacing: 0px;
             }}
             QPushButton#ghost:hover {{
-                background-color: #f0f0f0;
+                background-color: #f5f5f5;
+                border-color: #999;
             }}
             QLineEdit {{
-                padding: 8px 12px;
+                padding: 9px 12px;
                 border-radius: 6px;
                 background: #fafafa;
                 border: 1px solid {border_color};
                 color: {text_color};
-                min-height: 32px;
+                min-height: 34px;
+                font-size: 13px;
+                font-weight: 500;
             }}
             QLineEdit:focus {{
-                border: 1px solid {accent_color};
+                border: 2px solid {accent_color};
                 background-color: #ffffff;
             }}
             QTableWidget {{
                 background-color: {card_color};
                 border: 1px solid {border_color};
                 color: {text_color};
-                gridline-color: {border_color};
-                border-radius: 8px;
+                gridline-color: #f0f0f0;
+                border-radius: 6px;
+                font-size: 13px;
             }}
             QHeaderView::section {{
                 background-color: {accent_color};
                 color: white;
-                font-weight: 600;
-                padding: 10px;
+                font-weight: 700;
+                padding: 10px 8px;
                 border: none;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
             }}
             QTableWidget::item {{
-                padding: 8px;
+                padding: 10px 8px;
+                border: none;
+                color: {text_color};
             }}
             QTableWidget::item:selected {{
-                background-color: #c8e6c9;
-                color: #1a1a1a;
+                background-color: #e8f4f0;
+                color: {text_color};
             }}
         """)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(30, 25, 30, 25)
-        layout.setSpacing(20)
+        layout.setContentsMargins(30, 24, 30, 24)
+        layout.setSpacing(16)
 
-        # Title
-        title = QLabel("🔧 Data Manager")
-        title.setObjectName("title")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+        # === Header with Title and Back Button ===
+        header_layout, title_label, back_btn = create_page_header("🔧 Data Manager")
+        back_btn.clicked.connect(self.go_back)
+        layout.addLayout(header_layout)
 
         # === Tab Navigation ===
-        tab_card = QFrame()
-        tab_card.setObjectName("card")
-        tab_layout = QHBoxLayout(tab_card)
+        tab_layout = QHBoxLayout()
+        tab_layout.setSpacing(10)
         
         self.vehicle_btn = QPushButton("🚗 Vehicles")
         self.driver_btn = QPushButton("👤 Drivers")
@@ -213,59 +242,60 @@ class DataManagerPage(QWidget):
         
         for btn in self.tab_buttons:
             btn.setObjectName("tab")
-            btn.setMinimumHeight(45)
+            btn.setFixedHeight(38)
+            btn.setMinimumWidth(120)
             tab_layout.addWidget(btn)
         
-        layout.addWidget(tab_card)
+        tab_layout.addStretch()
+        layout.addLayout(tab_layout)
 
-        # === Data Card ===
+        # === Data Table Card ===
         data_card = QFrame()
         data_card.setObjectName("card")
         data_layout = QVBoxLayout(data_card)
-        
-        self.table_title = QLabel("Vehicles")
-        self.table_title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        self.table_title.setStyleSheet("color: #2d7a5f; padding-bottom: 10px;")
-        data_layout.addWidget(self.table_title)
+        data_layout.setContentsMargins(0, 0, 0, 0)
+        data_layout.setSpacing(0)
         
         # Table
         self.table = QTableWidget()
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
         self.table.itemSelectionChanged.connect(self.on_selection_changed)
         data_layout.addWidget(self.table)
         
-        layout.addWidget(data_card)
+        layout.addWidget(data_card, 1)
 
         # === Action Buttons ===
-        action_card = QFrame()
-        action_card.setObjectName("card")
-        action_layout = QHBoxLayout(action_card)
+        action_layout = QHBoxLayout()
+        action_layout.setSpacing(10)
         
         # Simple input for drivers, sites, sections
         self.simple_input = QLineEdit()
         self.simple_input.setPlaceholderText("Enter name...")
         self.simple_input.setVisible(False)
-        action_layout.addWidget(self.simple_input, 2)
+        self.simple_input.setMaximumWidth(250)
+        action_layout.addWidget(self.simple_input)
         
         self.add_btn = QPushButton("➕ Add New")
-        self.edit_btn = QPushButton("✏ Edit Selected")
+        self.add_btn.setFixedHeight(36)
+        self.add_btn.setMinimumWidth(110)
+        
+        self.edit_btn = QPushButton("✏ Edit")
         self.edit_btn.setObjectName("secondary")
-        self.delete_btn = QPushButton("🗑 Delete Selected")
+        self.edit_btn.setFixedHeight(36)
+        self.edit_btn.setMinimumWidth(90)
+        
+        self.delete_btn = QPushButton("🗑 Delete")
         self.delete_btn.setObjectName("danger")
+        self.delete_btn.setFixedHeight(36)
+        self.delete_btn.setMinimumWidth(90)
         
         action_layout.addWidget(self.add_btn)
         action_layout.addWidget(self.edit_btn)
         action_layout.addWidget(self.delete_btn)
         action_layout.addStretch()
         
-        layout.addWidget(action_card)
-
-        # Back button
-        back_btn = QPushButton("⬅ Back to Home")
-        back_btn.setObjectName("ghost")
-        back_btn.clicked.connect(self.go_back)
-        layout.addWidget(back_btn)
+        layout.addLayout(action_layout)
 
         self.setLayout(layout)
 
@@ -295,21 +325,17 @@ class DataManagerPage(QWidget):
         
         if table_name == "vehicles":
             self.vehicle_btn.setObjectName("tab_active")
-            self.table_title.setText("🚗 Vehicles")
             self.simple_input.setVisible(False)
         elif table_name == "drivers":
             self.driver_btn.setObjectName("tab_active")
-            self.table_title.setText("👤 Drivers")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter driver name...")
         elif table_name == "sites":
             self.site_btn.setObjectName("tab_active")
-            self.table_title.setText("📍 Sites")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter site name...")
         elif table_name == "sections":
             self.section_btn.setObjectName("tab_active")
-            self.table_title.setText("🏗 Sections")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter section name...")
         
