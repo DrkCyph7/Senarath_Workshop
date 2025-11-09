@@ -45,7 +45,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-**Default PIN**: 1234
+**Default PIN**: 2345
 
 ## 📁 Project Structure
 
@@ -134,7 +134,7 @@ python main.py
 ```
 
 **Login issues**
-- Default PIN: 1234
+- Default PIN: 2345
 - Check terminal output for errors
 
 **Database errors**
