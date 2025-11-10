@@ -2,11 +2,13 @@ import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QLineEdit, QMessageBox, QDialog,
-    QGridLayout, QDialogButtonBox, QFrame
+    QGridLayout, QDialogButtonBox, QFrame, QComboBox, QSpinBox, QDoubleSpinBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
+
+GRADES = ["Grade1", "Grade2", "Grade3", "Grade4", "Helper"]
 
 DB_PATH = "ui/db/senarath.db"
 
@@ -76,6 +78,113 @@ class VehicleDialog(QDialog):
             'model': self.model_input.text().strip(),
             'type': self.type_input.text().strip()
         }
+
+
+class LabourDialog(QDialog):
+    def __init__(self, parent=None, edit_data=None, sites=None):
+        super().__init__(parent)
+        self.setWindowTitle("Add/Edit Labour")
+        self.setMinimumWidth(500)
+        
+        layout = QVBoxLayout()
+        form_layout = QGridLayout()
+        
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("e.g., Ravi Kumar")
+        
+        self.site_input = QComboBox()
+        if sites:
+            self.site_input.addItems(sites)
+        
+        self.grade_input = QComboBox()
+        self.grade_input.addItems(GRADES)
+        
+        form_layout.addWidget(QLabel("Name:"), 0, 0)
+        form_layout.addWidget(self.name_input, 0, 1)
+        
+        form_layout.addWidget(QLabel("Site:"), 1, 0)
+        form_layout.addWidget(self.site_input, 1, 1)
+        
+        form_layout.addWidget(QLabel("Grade:"), 2, 0)
+        form_layout.addWidget(self.grade_input, 2, 1)
+        
+        layout.addLayout(form_layout)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        
+        if edit_data:
+            self.name_input.setText(edit_data.get('name', ''))
+            idx = self.site_input.findText(edit_data.get('site', ''))
+            if idx >= 0:
+                self.site_input.setCurrentIndex(idx)
+            idx = self.grade_input.findText(edit_data.get('grade', ''))
+            if idx >= 0:
+                self.grade_input.setCurrentIndex(idx)
+    
+    def get_data(self):
+        return {
+            'name': self.name_input.text().strip(),
+            'site': self.site_input.currentText(),
+            'grade': self.grade_input.currentText()
+        }
+
+
+class LabourRateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Manage Labour Rates")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(400)
+        
+        layout = QVBoxLayout()
+        
+        title = QLabel("Labour Grade Hourly Rates")
+        title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        layout.addWidget(title)
+        
+        form_layout = QGridLayout()
+        self.rate_inputs = {}
+        
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        for idx, grade in enumerate(GRADES):
+            c.execute("SELECT cost_per_hour FROM labour_rates WHERE grade=?", (grade,))
+            result = c.fetchone()
+            rate = result[0] if result else 0.0
+            
+            label = QLabel(grade + ":")
+            spin = QDoubleSpinBox()
+            spin.setMinimum(0)
+            spin.setMaximum(9999.99)
+            spin.setValue(rate)
+            spin.setSingleStep(10.0)
+            spin.setDecimals(2)
+            spin.setSuffix(" Rs/hr")
+            
+            self.rate_inputs[grade] = spin
+            form_layout.addWidget(label, idx, 0)
+            form_layout.addWidget(spin, idx, 1)
+        
+        conn.close()
+        
+        layout.addLayout(form_layout)
+        layout.addStretch()
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+    
+    def get_rates(self):
+        return {grade: spin.value() for grade, spin in self.rate_inputs.items()}
 
 
 class DataManagerPage(QWidget):
@@ -237,8 +346,9 @@ class DataManagerPage(QWidget):
         self.driver_btn = QPushButton("👤 Drivers")
         self.site_btn = QPushButton("📍 Sites")
         self.section_btn = QPushButton("🏗 Sections")
+        self.labour_btn = QPushButton("� Labour")
 
-        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn]
+        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn, self.labour_btn]
         
         for btn in self.tab_buttons:
             btn.setObjectName("tab")
@@ -290,9 +400,16 @@ class DataManagerPage(QWidget):
         self.delete_btn.setFixedHeight(36)
         self.delete_btn.setMinimumWidth(90)
         
+        self.labour_rates_btn = QPushButton("💰 Labour Rates")
+        self.labour_rates_btn.setObjectName("secondary")
+        self.labour_rates_btn.setFixedHeight(36)
+        self.labour_rates_btn.setMinimumWidth(140)
+        self.labour_rates_btn.setVisible(False)
+        
         action_layout.addWidget(self.add_btn)
         action_layout.addWidget(self.edit_btn)
         action_layout.addWidget(self.delete_btn)
+        action_layout.addWidget(self.labour_rates_btn)
         action_layout.addStretch()
         
         layout.addLayout(action_layout)
@@ -304,10 +421,12 @@ class DataManagerPage(QWidget):
         self.driver_btn.clicked.connect(lambda: self.switch_table("drivers"))
         self.site_btn.clicked.connect(lambda: self.switch_table("sites"))
         self.section_btn.clicked.connect(lambda: self.switch_table("sections"))
+        self.labour_btn.clicked.connect(lambda: self.switch_table("labour"))
         
         self.add_btn.clicked.connect(self.add_record)
         self.edit_btn.clicked.connect(self.edit_record)
         self.delete_btn.clicked.connect(self.delete_record)
+        self.labour_rates_btn.clicked.connect(self.show_labour_rates_dialog)
 
         self.refresh_all()
 
@@ -326,18 +445,26 @@ class DataManagerPage(QWidget):
         if table_name == "vehicles":
             self.vehicle_btn.setObjectName("tab_active")
             self.simple_input.setVisible(False)
+            self.labour_rates_btn.setVisible(False)
         elif table_name == "drivers":
             self.driver_btn.setObjectName("tab_active")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter driver name...")
+            self.labour_rates_btn.setVisible(False)
         elif table_name == "sites":
             self.site_btn.setObjectName("tab_active")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter site name...")
+            self.labour_rates_btn.setVisible(False)
         elif table_name == "sections":
             self.section_btn.setObjectName("tab_active")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter section name...")
+            self.labour_rates_btn.setVisible(False)
+        elif table_name == "labour":
+            self.labour_btn.setObjectName("tab_active")
+            self.simple_input.setVisible(False)
+            self.labour_rates_btn.setVisible(True)
         
         # Force style refresh
         for btn in self.tab_buttons:
@@ -365,6 +492,10 @@ class DataManagerPage(QWidget):
             c.execute("SELECT id, name FROM sections ORDER BY name")
             data = c.fetchall()
             headers = ["ID", "Section Name"]
+        elif self.current_table == "labour":
+            c.execute("SELECT id, name, site, grade FROM labour ORDER BY name")
+            data = c.fetchall()
+            headers = ["ID", "Name", "Site", "Grade"]
         else:
             data, headers = [], []
 
@@ -413,6 +544,30 @@ class DataManagerPage(QWidget):
                 conn.close()
                 
                 QMessageBox.information(self, "Success", "Vehicle added successfully!")
+                self.refresh_all()
+        elif self.current_table == "labour":
+            # Get sites for dropdown
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT name FROM sites ORDER BY name")
+            sites = [row[0] for row in c.fetchall()]
+            conn.close()
+            
+            dialog = LabourDialog(self, sites=sites)
+            if dialog.exec():
+                data = dialog.get_data()
+                if not data['name']:
+                    QMessageBox.warning(self, "Warning", "Labour name is required!")
+                    return
+                
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("INSERT INTO labour (name, site, grade) VALUES (?, ?, ?)",
+                         (data['name'], data['site'], data['grade']))
+                conn.commit()
+                conn.close()
+                
+                QMessageBox.information(self, "Success", "Labour added successfully!")
                 self.refresh_all()
         else:
             text = self.simple_input.text().strip()
@@ -479,6 +634,38 @@ class DataManagerPage(QWidget):
                     
                     QMessageBox.information(self, "Success", "Vehicle updated successfully!")
                     self.refresh_all()
+        elif self.current_table == "labour":
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT name, site, grade FROM labour WHERE id=?", (record_id,))
+            labour_data = c.fetchone()
+            c.execute("SELECT name FROM sites ORDER BY name")
+            sites = [row[0] for row in c.fetchall()]
+            conn.close()
+            
+            if labour_data:
+                edit_data = {
+                    'name': labour_data[0],
+                    'site': labour_data[1],
+                    'grade': labour_data[2]
+                }
+                
+                dialog = LabourDialog(self, edit_data=edit_data, sites=sites)
+                if dialog.exec():
+                    data = dialog.get_data()
+                    if not data['name']:
+                        QMessageBox.warning(self, "Warning", "Labour name is required!")
+                        return
+                    
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("UPDATE labour SET name=?, site=?, grade=? WHERE id=?",
+                             (data['name'], data['site'], data['grade'], record_id))
+                    conn.commit()
+                    conn.close()
+                    
+                    QMessageBox.information(self, "Success", "Labour updated successfully!")
+                    self.refresh_all()
         else:
             text = self.simple_input.text().strip()
             if not text:
@@ -518,3 +705,15 @@ class DataManagerPage(QWidget):
         
         QMessageBox.information(self, "Deleted", "Record(s) deleted successfully!")
         self.refresh_all()
+
+    def show_labour_rates_dialog(self):
+        dialog = LabourRateDialog(self)
+        if dialog.exec():
+            rates = dialog.get_rates()
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            for grade, rate in rates.items():
+                c.execute("UPDATE labour_rates SET cost_per_hour=? WHERE grade=?", (rate, grade))
+            conn.commit()
+            conn.close()
+            QMessageBox.information(self, "Success", "Labour rates updated successfully!")

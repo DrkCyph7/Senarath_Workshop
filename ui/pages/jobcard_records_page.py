@@ -4,13 +4,120 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
     QDateEdit, QCheckBox, QFrame, QDialog, QTextEdit, QGridLayout,
-    QDialogButtonBox, QScrollArea
+    QDialogButtonBox, QScrollArea, QSpinBox, QDoubleSpinBox, QTabWidget
 )
-from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QDate, QTimer
+from PySide6.QtGui import QFont, QColor
 from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
+
+
+class LabourWorksDialog(QDialog):
+    """Display labour works with detailed breakdown"""
+    def __init__(self, labour_works_json, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Labour Works Details")
+        self.setMinimumSize(900, 600)
+        
+        self.labour_works_data = []
+        try:
+            self.labour_works_data = json.loads(labour_works_json) if labour_works_json else []
+        except:
+            self.labour_works_data = []
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+            }
+            QLabel {
+                color: #2c2c2c;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                gridline-color: #e0e0e0;
+            }
+            QHeaderView::section {
+                background-color: #2d7a5f;
+                color: white;
+                padding: 10px;
+                border: none;
+                font-weight: 700;
+            }
+        """)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("👷 Labour Works Summary")
+        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
+        title.setStyleSheet("color: #2d7a5f; padding-bottom: 10px;")
+        layout.addWidget(title)
+        
+        # Table
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["#", "Description", "Hours", "Labour Assigned", "Cost"])
+        layout.addWidget(self.table)
+        
+        # Summary
+        summary_layout = QHBoxLayout()
+        summary_layout.addStretch()
+        
+        self.total_hours_label = QLabel("Total Hours: 0.00")
+        self.total_hours_label.setStyleSheet("font-size: 13px; padding: 8px 15px; background-color: #f0f0f0; border-radius: 5px;")
+        summary_layout.addWidget(self.total_hours_label)
+        
+        self.total_labour_cost_label = QLabel("Total Labour Cost: Rs. 0.00")
+        self.total_labour_cost_label.setStyleSheet("font-size: 13px; font-weight: 700; padding: 8px 15px; background-color: #e8f4f0; border-radius: 5px; color: #2d7a5f;")
+        summary_layout.addWidget(self.total_labour_cost_label)
+        
+        layout.addLayout(summary_layout)
+        
+        # Close button
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        self.refresh_table()
+    
+    def refresh_table(self):
+        self.table.setRowCount(len(self.labour_works_data))
+        total_hours = 0.0
+        total_cost = 0.0
+        
+        for row_idx, work in enumerate(self.labour_works_data):
+            self.table.setItem(row_idx, 0, QTableWidgetItem(str(row_idx + 1)))
+            self.table.setItem(row_idx, 1, QTableWidgetItem(work.get('description', '')))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(str(work.get('hours', '0'))))
+            
+            # Parse labour list
+            labour_list = []
+            try:
+                labour_json = work.get('labour_list', '[]')
+                labour_items = json.loads(labour_json) if isinstance(labour_json, str) else labour_json
+                labour_list = [item['name'] for item in labour_items]
+            except:
+                pass
+            
+            self.table.setItem(row_idx, 3, QTableWidgetItem(', '.join(labour_list)))
+            self.table.setItem(row_idx, 4, QTableWidgetItem(f"Rs. {work.get('work_cost', '0')}"))
+            
+            try:
+                total_hours += float(work.get('hours', 0))
+                total_cost += float(work.get('work_cost', 0))
+            except ValueError:
+                pass
+        
+        self.total_hours_label.setText(f"Total Hours: {total_hours:.2f}")
+        self.total_labour_cost_label.setText(f"Total Labour Cost: Rs. {total_cost:,.2f}")
 
 
 class SparePartEditDialog(QDialog):
@@ -500,7 +607,7 @@ class JobCardDetailDialog(QDialog):
     def __init__(self, job_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Job Card Details - {job_data.get('job_no', 'N/A')}")
-        self.setMinimumSize(800, 650)
+        self.setMinimumSize(1000, 800)
         
         self.setStyleSheet("""
             QDialog {
@@ -519,9 +626,30 @@ class JobCardDetailDialog(QDialog):
                 border-radius: 6px;
                 padding: 10px 20px;
                 font-weight: 600;
+                min-height: 36px;
             }
             QPushButton:hover {
                 background-color: #246651;
+            }
+            QPushButton#secondary {
+                background-color: #8b6f47;
+            }
+            QPushButton#secondary:hover {
+                background-color: #735a38;
+            }
+            QTabWidget::pane {
+                border: 1px solid #e0e0e0;
+            }
+            QTabBar::tab {
+                background-color: #f5f5f5;
+                border: 1px solid #e0e0e0;
+                padding: 8px 15px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #2d7a5f;
+                color: white;
+                border: 1px solid #2d7a5f;
             }
         """)
         
@@ -529,76 +657,257 @@ class JobCardDetailDialog(QDialog):
         layout.setContentsMargins(25, 25, 25, 25)
         layout.setSpacing(15)
         
-        # Job info
-        info_text = f"""
-<h2 style="color: #2d7a5f; border-bottom: 2px solid #2d7a5f; padding-bottom: 8px;">📋 Job Card: {job_data.get('job_no', 'N/A')}</h2>
-
-<table style="width: 100%; margin-top: 15px;" cellpadding="8">
-<tr>
-    <td style="width: 50%; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">
-        <p style="margin: 5px 0;"><b>Job No:</b> {job_data.get('job_no', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Driver:</b> {job_data.get('driver', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Company No:</b> {job_data.get('company_no', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Site:</b> {job_data.get('site', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Vehicle No:</b> {job_data.get('vehicle_no', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Section:</b> {job_data.get('section', 'N/A')}</p>
-    </td>
-    <td style="width: 50%; background-color: #f5f5f5; padding: 10px; border-radius: 5px;">
-        <p style="margin: 5px 0;"><b>Make:</b> {job_data.get('make', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Hr/Km Reading:</b> {job_data.get('hr_km', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Model:</b> {job_data.get('model', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Start Date:</b> {job_data.get('start_date', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>Type:</b> {job_data.get('type', 'N/A')}</p>
-        <p style="margin: 5px 0;"><b>End Date:</b> {job_data.get('end_date', 'N/A')}</p>
-    </td>
-</tr>
-</table>
-
-<h3 style="color: #2d7a5f; margin-top: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px;">📝 Job Description:</h3>
-<p style="background-color: #f9f9f9; padding: 12px; border-radius: 5px; line-height: 1.6;">{job_data.get('description', 'No description provided.')}</p>
-
-<h3 style="color: #2d7a5f; margin-top: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px;">🔧 Spare Parts & Materials Used:</h3>
-        """
+        # Header with Job No and Dates
+        header_layout = QHBoxLayout()
+        title = QLabel(f"📋 Job Card: {job_data.get('job_no', 'N/A')}")
+        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        title.setStyleSheet("color: #2d7a5f;")
+        header_layout.addWidget(title)
+        header_layout.addStretch()
         
-        # Parse spare parts
+        date_info = QLabel(f"📅 {job_data.get('start_date', 'N/A')} → {job_data.get('end_date', 'N/A')}")
+        date_info.setFont(QFont("Segoe UI", 11))
+        date_info.setStyleSheet("color: #666; padding: 8px 15px; background-color: #f5f5f5; border-radius: 5px;")
+        header_layout.addWidget(date_info)
+        layout.addLayout(header_layout)
+        
+        # Main Info Grid
+        info_layout = QGridLayout()
+        info_layout.setSpacing(15)
+        
+        info_cards = [
+            ("Driver", job_data.get('driver', 'N/A'), "👤"),
+            ("Company No", job_data.get('company_no', 'N/A'), "🏢"),
+            ("Vehicle No", job_data.get('vehicle_no', 'N/A'), "🚗"),
+            ("Make/Model", f"{job_data.get('make', 'N/A')} / {job_data.get('model', 'N/A')}", "⚙️"),
+            ("Site", job_data.get('site', 'N/A'), "📍"),
+            ("Section", job_data.get('section', 'N/A'), "📋"),
+        ]
+        
+        for idx, (label, value, icon) in enumerate(info_cards):
+            card = QFrame()
+            card.setStyleSheet("background-color: #f9f9f9; border-radius: 6px; border: 1px solid #e0e0e0; padding: 12px;")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 8, 10, 8)
+            card_layout.setSpacing(4)
+            
+            label_widget = QLabel(f"{icon} {label}")
+            label_widget.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            label_widget.setStyleSheet("color: #2d7a5f;")
+            value_widget = QLabel(value)
+            value_widget.setFont(QFont("Segoe UI", 12, QFont.Bold))
+            value_widget.setStyleSheet("color: #1a1a1a;")
+            
+            card_layout.addWidget(label_widget)
+            card_layout.addWidget(value_widget)
+            
+            info_layout.addWidget(card, idx // 3, idx % 3)
+        
+        layout.addLayout(info_layout)
+        
+        # Tab widget for detailed info
+        tabs = QTabWidget()
+        
+        # ==== TAB 1: Job Description ====
+        desc_tab = QWidget()
+        desc_layout = QVBoxLayout(desc_tab)
+        desc_label = QLabel("📝 Job Description:")
+        desc_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        desc_label.setStyleSheet("color: #2d7a5f;")
+        desc_layout.addWidget(desc_label)
+        desc_text = QTextEdit()
+        desc_text.setPlainText(job_data.get('description', 'No description provided.'))
+        desc_text.setReadOnly(True)
+        desc_text.setMinimumHeight(120)
+        desc_layout.addWidget(desc_text)
+        tabs.addTab(desc_tab, "📝 Description")
+        
+        # ==== TAB 2: Spare Parts ====
+        spare_tab = QWidget()
+        spare_layout = QVBoxLayout(spare_tab)
+        spare_label = QLabel("🔧 Spare Parts & Materials:")
+        spare_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        spare_label.setStyleSheet("color: #2d7a5f;")
+        spare_layout.addWidget(spare_label)
+        
         spare_parts = job_data.get('spare_parts', '[]')
         try:
             parts = json.loads(spare_parts) if spare_parts else []
             if parts:
+                spare_text = "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%; margin-top: 10px; background-color: #ffffff;'>"
+                spare_text += "<tr style='background-color: #2d7a5f; color: white; font-weight: 700;'>"
+                spare_text += "<th style='text-align: center; width: 40px;'>#</th>"
+                spare_text += "<th style='text-align: left;'>Description</th>"
+                spare_text += "<th style='text-align: center; width: 80px;'>Qty</th>"
+                spare_text += "<th style='text-align: center; width: 60px;'>Unit</th>"
+                spare_text += "<th style='text-align: right; width: 100px;'>Unit Price</th>"
+                spare_text += "<th style='text-align: right; width: 100px;'>Total</th>"
+                spare_text += "</tr>"
+                
                 grand_total = 0.0
-                info_text += "<table border='1' cellpadding='8' style='border-collapse: collapse; width: 100%; margin-top: 10px;'>"
-                info_text += "<tr style='background-color: #2d7a5f; color: white;'><th>#</th><th>Description</th><th>Ref No</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Total</th></tr>"
                 for idx, part in enumerate(parts, 1):
                     total_val = part.get('total', '0')
                     try:
                         grand_total += float(total_val)
                     except:
                         pass
-                    info_text += f"<tr style='background-color: {"#f9f9f9" if idx % 2 == 0 else "#ffffff"};'>"
-                    info_text += f"<td style='text-align: center;'>{idx}</td>"
-                    info_text += f"<td>{part.get('description', '')}</td>"
-                    info_text += f"<td>{part.get('ref_no', '')}</td>"
-                    info_text += f"<td style='text-align: center;'>{part.get('quantity', '')}</td>"
-                    info_text += f"<td>{part.get('unit', '')}</td>"
-                    info_text += f"<td style='text-align: right;'>Rs. {part.get('unit_price', '')}</td>"
-                    info_text += f"<td style='text-align: right; font-weight: 600;'>Rs. {total_val}</td></tr>"
-                info_text += f"<tr style='background-color: #e8f4f0; font-weight: 700;'><td colspan='6' style='text-align: right; padding: 10px;'>Grand Total:</td><td style='text-align: right; color: #2d7a5f; font-size: 15px;'>Rs. {grand_total:,.2f}</td></tr>"
-                info_text += "</table>"
+                    
+                    bg_color = "#f9f9f9" if idx % 2 == 0 else "#ffffff"
+                    spare_text += f"<tr style='background-color: {bg_color};'>"
+                    spare_text += f"<td style='text-align: center; font-weight: 600;'>{idx}</td>"
+                    spare_text += f"<td>{part.get('description', '')}</td>"
+                    spare_text += f"<td style='text-align: center;'>{part.get('quantity', '')}</td>"
+                    spare_text += f"<td style='text-align: center;'>{part.get('unit', '')}</td>"
+                    spare_text += f"<td style='text-align: right;'>Rs. {float(part.get('unit_price', 0)):,.2f}</td>"
+                    spare_text += f"<td style='text-align: right; font-weight: 600;'>Rs. {float(total_val):,.2f}</td>"
+                    spare_text += "</tr>"
+                
+                spare_text += f"<tr style='background-color: #e8f4f0; font-weight: 700;'>"
+                spare_text += f"<td colspan='5' style='text-align: right; padding: 12px;'>Spare Parts Total:</td>"
+                spare_text += f"<td style='text-align: right; color: #2d7a5f; font-size: 14px;'>Rs. {grand_total:,.2f}</td>"
+                spare_text += "</tr>"
+                spare_text += "</table>"
+                
+                spare_display = QTextEdit()
+                spare_display.setHtml(spare_text)
+                spare_display.setReadOnly(True)
+                spare_layout.addWidget(spare_display)
             else:
-                info_text += "<p style='font-style: italic; color: #666; padding: 10px;'>No spare parts recorded.</p>"
+                no_parts = QLabel("No spare parts recorded for this job card.")
+                no_parts.setStyleSheet("color: #666; font-style: italic; padding: 20px;")
+                spare_layout.addWidget(no_parts)
         except:
-            info_text += "<p style='color: #c84343;'><i>Error loading spare parts data.</i></p>"
+            error_label = QLabel("Error loading spare parts data.")
+            error_label.setStyleSheet("color: #c84343;")
+            spare_layout.addWidget(error_label)
         
-        text_display = QTextEdit()
-        text_display.setHtml(info_text)
-        text_display.setReadOnly(True)
-        layout.addWidget(text_display)
+        tabs.addTab(spare_tab, "🔧 Spare Parts")
+        
+        # ==== TAB 3: Labour Works ====
+        labour_tab = QWidget()
+        labour_layout = QVBoxLayout(labour_tab)
+        labour_label = QLabel("👷 Labour Works:")
+        labour_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        labour_label.setStyleSheet("color: #2d7a5f;")
+        labour_layout.addWidget(labour_label)
+        
+        labour_works = job_data.get('labour_works', '[]')
+        try:
+            works = json.loads(labour_works) if labour_works else []
+            if works:
+                labour_text = "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%; margin-top: 10px; background-color: #ffffff;'>"
+                labour_text += "<tr style='background-color: #2d7a5f; color: white; font-weight: 700;'>"
+                labour_text += "<th style='text-align: center; width: 40px;'>#</th>"
+                labour_text += "<th style='text-align: left;'>Work Description</th>"
+                labour_text += "<th style='text-align: center; width: 80px;'>Hours</th>"
+                labour_text += "<th style='text-align: left;'>Labour Assigned</th>"
+                labour_text += "<th style='text-align: right; width: 120px;'>Cost</th>"
+                labour_text += "</tr>"
+                
+                total_hours = 0.0
+                total_labour_cost = 0.0
+                for idx, work in enumerate(works, 1):
+                    labour_list = []
+                    try:
+                        labour_json = work.get('labour_list', '[]')
+                        labour_items = json.loads(labour_json) if isinstance(labour_json, str) else labour_json
+                        for item in labour_items:
+                            labour_list.append(f"{item.get('name', '')} ({item.get('grade', '')})")
+                    except:
+                        pass
+                    
+                    hours = float(work.get('hours', 0))
+                    cost = float(work.get('work_cost', 0))
+                    total_hours += hours
+                    total_labour_cost += cost
+                    
+                    bg_color = "#f9f9f9" if idx % 2 == 0 else "#ffffff"
+                    labour_text += f"<tr style='background-color: {bg_color};'>"
+                    labour_text += f"<td style='text-align: center; font-weight: 600;'>{idx}</td>"
+                    labour_text += f"<td>{work.get('description', '')}</td>"
+                    labour_text += f"<td style='text-align: center;'>{hours:.2f}</td>"
+                    labour_text += f"<td>{', '.join(labour_list)}</td>"
+                    labour_text += f"<td style='text-align: right; font-weight: 600;'>Rs. {cost:,.2f}</td>"
+                    labour_text += "</tr>"
+                
+                labour_text += f"<tr style='background-color: #e8f4f0; font-weight: 700;'>"
+                labour_text += f"<td colspan='2' style='text-align: right; padding: 12px;'>Total Hours: {total_hours:.2f}</td>"
+                labour_text += f"<td colspan='2' style='text-align: right; padding: 12px;'>Labour Cost Total:</td>"
+                labour_text += f"<td style='text-align: right; color: #2d7a5f; font-size: 14px;'>Rs. {total_labour_cost:,.2f}</td>"
+                labour_text += "</tr>"
+                labour_text += "</table>"
+                
+                labour_display = QTextEdit()
+                labour_display.setHtml(labour_text)
+                labour_display.setReadOnly(True)
+                labour_layout.addWidget(labour_display)
+            else:
+                no_labour = QLabel("No labour works recorded for this job card.")
+                no_labour.setStyleSheet("color: #666; font-style: italic; padding: 20px;")
+                labour_layout.addWidget(no_labour)
+        except:
+            error_label = QLabel("Error loading labour works data.")
+            error_label.setStyleSheet("color: #c84343;")
+            labour_layout.addWidget(error_label)
+        
+        tabs.addTab(labour_tab, "👷 Labour Works")
+        
+        layout.addWidget(tabs)
+        
+        # ==== COST SUMMARY ====
+        summary_frame = QFrame()
+        summary_frame.setStyleSheet("background-color: #e8f4f0; border-radius: 8px; border: 2px solid #2d7a5f; padding: 15px;")
+        summary_layout = QHBoxLayout(summary_frame)
+        summary_layout.setContentsMargins(20, 15, 20, 15)
+        
+        # Spare parts total
+        spare_total = 0.0
+        try:
+            parts = json.loads(spare_parts) if spare_parts else []
+            for part in parts:
+                spare_total += float(part.get('total', 0))
+        except:
+            pass
+        
+        # Labour total
+        labour_total = 0.0
+        try:
+            works = json.loads(labour_works) if labour_works else []
+            for work in works:
+                labour_total += float(work.get('work_cost', 0))
+        except:
+            pass
+        
+        grand_total = spare_total + labour_total
+        
+        spare_label = QLabel(f"Spare Parts: Rs. {spare_total:,.2f}")
+        spare_label.setFont(QFont("Segoe UI", 12))
+        spare_label.setStyleSheet("color: #2d7a5f; font-weight: 600;")
+        
+        labour_label = QLabel(f"Labour Cost: Rs. {labour_total:,.2f}")
+        labour_label.setFont(QFont("Segoe UI", 12))
+        labour_label.setStyleSheet("color: #2d7a5f; font-weight: 600;")
+        
+        grand_label = QLabel(f"GRAND TOTAL: Rs. {grand_total:,.2f}")
+        grand_label.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        grand_label.setStyleSheet("color: #2d7a5f;")
+        
+        summary_layout.addWidget(spare_label)
+        summary_layout.addSpacing(30)
+        summary_layout.addWidget(labour_label)
+        summary_layout.addStretch()
+        summary_layout.addWidget(grand_label)
+        
+        layout.addWidget(summary_frame)
         
         # Close button
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
         close_btn = QPushButton("✓ Close")
-        close_btn.setFixedHeight(42)
+        close_btn.setFixedWidth(120)
         close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
         
         self.setLayout(layout)
 
@@ -641,19 +950,18 @@ class JobCardRecordsPage(QWidget):
             }}
             QFrame#filter_card {{
                 background-color: {card_color};
-                border-radius: 8px;
-                padding: 14px;
-                border: none;
+                border-radius: 6px;
+                padding: 6px;
+                border: 1px solid {border_color};
             }}
             QLineEdit, QComboBox, QDateEdit {{
                 background-color: #fafafa;
                 border: 1px solid {border_color};
                 color: {text_color};
-                padding: 9px 11px;
-                border-radius: 5px;
-                min-height: 34px;
-                font-size: 13px;
-                font-weight: 500;
+                padding: 6px 8px;
+                border-radius: 4px;
+                min-height: 30px;
+                font-size: 12px;
             }}
             QLineEdit:focus, QComboBox:focus, QDateEdit:focus {{
                 border: 2px solid {accent_color};
@@ -662,15 +970,13 @@ class JobCardRecordsPage(QWidget):
             }}
             QPushButton {{
                 background-color: {accent_color};
-                border-radius: 5px;
-                padding: 11px 18px;
+                border-radius: 4px;
+                padding: 8px 12px;
                 color: white;
-                font-weight: 700;
-                min-height: 36px;
+                font-weight: 600;
+                min-height: 30px;
                 border: none;
-                font-size: 13px;
-                text-transform: uppercase;
-                letter-spacing: 0.4px;
+                font-size: 12px;
             }}
             QPushButton:hover {{
                 background-color: #246651;
@@ -696,25 +1002,11 @@ class JobCardRecordsPage(QWidget):
             QPushButton#danger:pressed {{
                 background-color: #992e2e;
             }}
-            QPushButton#ghost {{
-                background-color: transparent;
-                color: #333;
-                border: 1px solid #ccc;
-                text-transform: none;
-                letter-spacing: 0px;
-                font-weight: 600;
-                font-size: 13px;
-            }}
-            QPushButton#ghost:hover {{
-                background-color: #f5f5f5;
-                border-color: #999;
-                color: #1a1a1a;
-            }}
             QPushButton#nav {{
                 background-color: {secondary_color};
-                padding: 10px 16px;
-                min-height: 34px;
-                font-size: 13px;
+                padding: 8px 12px;
+                min-height: 30px;
+                font-size: 12px;
             }}
             QPushButton#nav:hover {{
                 background-color: #735a38;
@@ -763,131 +1055,177 @@ class JobCardRecordsPage(QWidget):
         """)
 
         layout = QVBoxLayout()
-        layout.setContentsMargins(32, 24, 32, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 12, 16, 16)
+        layout.setSpacing(8)
         
         # === Header: Title and Back Button ===
         header_layout, title_label, back_btn_top = create_page_header("📋 Job Card Records")
         back_btn_top.clicked.connect(self.go_back)
         layout.addLayout(header_layout)
 
+
+
         # === Compact Filter Card ===
         filter_card = QFrame()
         filter_card.setObjectName("filter_card")
         filter_layout = QVBoxLayout(filter_card)
-        filter_layout.setContentsMargins(14, 12, 14, 12)
-        filter_layout.setSpacing(10)
+        filter_layout.setContentsMargins(8, 8, 8, 8)
+        filter_layout.setSpacing(6)
         
-        # Single row with all filters
-        filter_row = QHBoxLayout()
-        filter_row.setSpacing(10)
+        # Row 1: Search + Site + Section
+        filter_row1 = QHBoxLayout()
+        filter_row1.setSpacing(6)
         
-        # Search
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search job no, company, vehicle, driver...")
-        self.search_input.setMinimumWidth(270)
-        filter_row.addWidget(self.search_input, 2)
+        self.search_input.setPlaceholderText("🔍 Search...")
+        self.search_input.setMaximumHeight(32)
+        filter_row1.addWidget(self.search_input, 2)
         
-        # Site filter
         self.site_filter = QComboBox()
         self.site_filter.addItem("All Sites")
-        self.site_filter.setMinimumWidth(110)
-        filter_row.addWidget(self.site_filter, 1)
+        self.site_filter.setMaximumHeight(32)
+        self.site_filter.setMaximumWidth(140)
+        filter_row1.addWidget(self.site_filter)
         
-        # Section filter
         self.section_filter = QComboBox()
         self.section_filter.addItem("All Sections")
-        self.section_filter.setMinimumWidth(110)
-        filter_row.addWidget(self.section_filter, 1)
+        self.section_filter.setMaximumHeight(32)
+        self.section_filter.setMaximumWidth(140)
+        filter_row1.addWidget(self.section_filter)
         
-        # Date filter type
+        filter_layout.addLayout(filter_row1)
+        
+        # Row 2: Date + Cost Range
+        filter_row2 = QHBoxLayout()
+        filter_row2.setSpacing(6)
+        
         self.date_filter_type = QComboBox()
-        self.date_filter_type.addItems(["All Dates", "Date Range", "This Month", "Last Month", "Last 3 Months", "Last 6 Months", "This Year"])
-        self.date_filter_type.setMinimumWidth(130)
+        self.date_filter_type.addItems(["All Dates", "Date Range", "This Month", "Last Month", "Last 3 Mo", "Last 6 Mo", "This Year"])
+        self.date_filter_type.setMaximumHeight(32)
+        self.date_filter_type.setMaximumWidth(130)
         self.date_filter_type.currentTextChanged.connect(self.on_date_filter_changed)
-        filter_row.addWidget(self.date_filter_type, 1)
+        filter_row2.addWidget(self.date_filter_type)
         
-        # Date inputs (hidden by default)
         self.start_date = QDateEdit(QDate.currentDate().addDays(-30))
         self.start_date.setCalendarPopup(True)
         self.start_date.setDisplayFormat("yyyy-MM-dd")
         self.start_date.setVisible(False)
-        self.start_date.setMinimumWidth(120)
-        self.start_date.setMaximumWidth(120)
-        filter_row.addWidget(self.start_date)
+        self.start_date.setMaximumHeight(32)
+        self.start_date.setMaximumWidth(110)
+        filter_row2.addWidget(self.start_date)
         
         self.end_date = QDateEdit(QDate.currentDate())
         self.end_date.setCalendarPopup(True)
         self.end_date.setDisplayFormat("yyyy-MM-dd")
         self.end_date.setVisible(False)
-        self.end_date.setMinimumWidth(120)
-        self.end_date.setMaximumWidth(120)
-        filter_row.addWidget(self.end_date)
+        self.end_date.setMaximumHeight(32)
+        self.end_date.setMaximumWidth(110)
+        filter_row2.addWidget(self.end_date)
         
-        # Filter buttons
+        # Cost Range
+        cost_label = QLabel("Cost:")
+        cost_label.setMaximumWidth(40)
+        filter_row2.addWidget(cost_label)
+        
+        self.min_cost = QDoubleSpinBox()
+        self.min_cost.setPrefix("Rs. ")
+        self.min_cost.setMinimum(0)
+        self.min_cost.setMaximum(9999999)
+        self.min_cost.setValue(0)
+        self.min_cost.setMaximumHeight(32)
+        self.min_cost.setMaximumWidth(100)
+        filter_row2.addWidget(self.min_cost)
+        
+        self.max_cost = QDoubleSpinBox()
+        self.max_cost.setPrefix("Rs. ")
+        self.max_cost.setMinimum(0)
+        self.max_cost.setMaximum(9999999)
+        self.max_cost.setValue(9999999)
+        self.max_cost.setMaximumHeight(32)
+        self.max_cost.setMaximumWidth(100)
+        filter_row2.addWidget(self.max_cost)
+        
+        filter_row2.addStretch()
+        
+        filter_layout.addLayout(filter_row2)
+        
+        # Row 3: Action buttons (Compact)
+        filter_row3 = QHBoxLayout()
+        filter_row3.setSpacing(3)
+        
         btn_apply = QPushButton("Apply")
-        btn_apply.setFixedHeight(34)
-        btn_apply.setFixedWidth(90)
+        btn_apply.setMaximumHeight(28)
+        btn_apply.setMaximumWidth(70)
         btn_apply.clicked.connect(self.apply_filters)
-        filter_row.addWidget(btn_apply)
+        filter_row3.addWidget(btn_apply)
         
         btn_clear = QPushButton("Clear")
         btn_clear.setObjectName("secondary")
-        btn_clear.setFixedHeight(34)
-        btn_clear.setFixedWidth(85)
+        btn_clear.setMaximumHeight(28)
+        btn_clear.setMaximumWidth(60)
         btn_clear.clicked.connect(self.clear_filters)
-        filter_row.addWidget(btn_clear)
+        filter_row3.addWidget(btn_clear)
         
-        filter_layout.addLayout(filter_row)
+        btn_export = QPushButton("Export")
+        btn_export.setObjectName("secondary")
+        btn_export.setMaximumHeight(28)
+        btn_export.setMaximumWidth(70)
+        btn_export.clicked.connect(self.export_data)
+        filter_row3.addWidget(btn_export)
+        
+        filter_row3.addStretch()
+        
+        filter_layout.addLayout(filter_row3)
         layout.addWidget(filter_card)
 
-        # === Navigation & Action Buttons ===
+        # === Navigation & Action Buttons (Compact) ===
         action_bar = QHBoxLayout()
-        action_bar.setSpacing(10)
+        action_bar.setSpacing(3)
+        action_bar.setContentsMargins(0, 0, 0, 0)
         
         # Navigation buttons
-        btn_new_job = QPushButton("➕ New Job Card")
+        btn_new_job = QPushButton("New Job")
         btn_new_job.setObjectName("nav")
-        btn_new_job.setFixedHeight(38)
-        btn_new_job.setMinimumWidth(150)
+        btn_new_job.setMaximumHeight(28)
+        btn_new_job.setMaximumWidth(90)
         btn_new_job.setCursor(Qt.PointingHandCursor)
         btn_new_job.clicked.connect(self.go_to_job_card)
         
-        btn_data_manager = QPushButton("📊 Data Manager")
+        btn_data_manager = QPushButton("Manager")
         btn_data_manager.setObjectName("nav")
-        btn_data_manager.setFixedHeight(38)
-        btn_data_manager.setMinimumWidth(150)
+        btn_data_manager.setMaximumHeight(28)
+        btn_data_manager.setMaximumWidth(80)
         btn_data_manager.setCursor(Qt.PointingHandCursor)
         btn_data_manager.clicked.connect(self.go_to_data_manager)
         
         action_bar.addWidget(btn_new_job)
         action_bar.addWidget(btn_data_manager)
-        action_bar.addSpacing(20)
+        action_bar.addSpacing(8)
         
         # Record actions
-        btn_view = QPushButton("👁 View")
-        btn_view.setFixedHeight(38)
-        btn_view.setMinimumWidth(100)
+        btn_view = QPushButton("View")
+        btn_view.setMaximumHeight(28)
+        btn_view.setMaximumWidth(60)
         btn_view.setCursor(Qt.PointingHandCursor)
         btn_view.clicked.connect(self.view_details)
         
-        btn_edit = QPushButton("✏ Edit")
+        btn_edit = QPushButton("Edit")
         btn_edit.setObjectName("secondary")
-        btn_edit.setFixedHeight(38)
-        btn_edit.setMinimumWidth(100)
+        btn_edit.setMaximumHeight(28)
+        btn_edit.setMaximumWidth(60)
         btn_edit.setCursor(Qt.PointingHandCursor)
         btn_edit.clicked.connect(self.edit_record)
         
-        btn_delete = QPushButton("🗑 Delete")
+        btn_delete = QPushButton("Delete")
         btn_delete.setObjectName("danger")
-        btn_delete.setFixedHeight(38)
-        btn_delete.setMinimumWidth(100)
+        btn_delete.setMaximumHeight(28)
+        btn_delete.setMaximumWidth(70)
         btn_delete.setCursor(Qt.PointingHandCursor)
         btn_delete.clicked.connect(self.delete_selected)
         
-        btn_refresh = QPushButton("🔄 Refresh")
-        btn_refresh.setFixedHeight(38)
-        btn_refresh.setMinimumWidth(100)
+        btn_refresh = QPushButton("Refresh")
+        btn_refresh.setMaximumHeight(28)
+        btn_refresh.setMaximumWidth(75)
         btn_refresh.setCursor(Qt.PointingHandCursor)
         btn_refresh.clicked.connect(self.load_records)
 
@@ -919,7 +1257,7 @@ class JobCardRecordsPage(QWidget):
 
     def on_date_filter_changed(self, filter_type):
         """Show/hide date inputs based on filter type"""
-        if filter_type == "Date Range":
+        if "Date Range" in filter_type:
             self.start_date.setVisible(True)
             self.end_date.setVisible(True)
         else:
@@ -945,18 +1283,22 @@ class JobCardRecordsPage(QWidget):
     def load_records(self):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("""SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date
+        c.execute("""SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date,
+                     spare_parts, labour_works
                      FROM job_cards ORDER BY id DESC""")
         rows = c.fetchall()
         conn.close()
-
-        self.populate_table(rows)
+        
+        # Extract table data (first 11 columns)
+        table_rows = [row[:11] for row in rows]
+        self.populate_table(table_rows)
 
     def apply_filters(self):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         
-        query = """SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date
+        query = """SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date,
+                   spare_parts, labour_works
                    FROM job_cards WHERE 1=1"""
         params = []
         
@@ -967,46 +1309,53 @@ class JobCardRecordsPage(QWidget):
             params.extend([f"%{keyword}%"] * 4)
         
         # Site filter
-        if self.site_filter.currentText() != "All Sites":
+        site_filter = self.site_filter.currentText()
+        if not site_filter.startswith("📍"):
+            site_filter = site_filter.replace("📍 ", "")
+        if site_filter != "All Sites":
             query += " AND site = ?"
-            params.append(self.site_filter.currentText())
+            params.append(site_filter)
         
         # Section filter
-        if self.section_filter.currentText() != "All Sections":
+        section_filter = self.section_filter.currentText()
+        if not section_filter.startswith("📋"):
+            section_filter = section_filter.replace("📋 ", "")
+        if section_filter != "All Sections":
             query += " AND section = ?"
-            params.append(self.section_filter.currentText())
+            params.append(section_filter)
         
         # Date filter
         filter_type = self.date_filter_type.currentText()
+        filter_type = filter_type.replace("📅 ", "")  # Remove emoji
         current_date = QDate.currentDate()
         
-        if filter_type == "Date Range":
+        if "Date Range" in filter_type:
             query += " AND start_date BETWEEN ? AND ?"
             params.append(self.start_date.date().toString("yyyy-MM-dd"))
             params.append(self.end_date.date().toString("yyyy-MM-dd"))
-        elif filter_type == "This Month":
+        elif "This Month" in filter_type:
             first_day = QDate(current_date.year(), current_date.month(), 1)
             query += " AND start_date BETWEEN ? AND ?"
             params.append(first_day.toString("yyyy-MM-dd"))
             params.append(current_date.toString("yyyy-MM-dd"))
-        elif filter_type == "Last Month":
+        elif "Last Month" in filter_type:
             last_month = current_date.addMonths(-1)
             first_day = QDate(last_month.year(), last_month.month(), 1)
             last_day = QDate(last_month.year(), last_month.month(), last_month.daysInMonth())
             query += " AND start_date BETWEEN ? AND ?"
             params.append(first_day.toString("yyyy-MM-dd"))
             params.append(last_day.toString("yyyy-MM-dd"))
-        elif filter_type == "Last 3 Months":
+        elif "Last 3 Months" in filter_type:
             three_months_ago = current_date.addMonths(-3)
             query += " AND start_date BETWEEN ? AND ?"
             params.append(three_months_ago.toString("yyyy-MM-dd"))
             params.append(current_date.toString("yyyy-MM-dd"))
-        elif filter_type == "Last 6 Months":
+        elif "Last 6 Months" in filter_type:
             six_months_ago = current_date.addMonths(-6)
             query += " AND start_date BETWEEN ? AND ?"
             params.append(six_months_ago.toString("yyyy-MM-dd"))
             params.append(current_date.toString("yyyy-MM-dd"))
-        elif filter_type == "This Year":
+        elif "This Year" in filter_type:
             first_day = QDate(current_date.year(), 1, 1)
             query += " AND start_date BETWEEN ? AND ?"
             params.append(first_day.toString("yyyy-MM-dd"))
@@ -1015,10 +1364,33 @@ class JobCardRecordsPage(QWidget):
         query += " ORDER BY id DESC"
         
         c.execute(query, params)
-        rows = c.fetchall()
+        all_rows = c.fetchall()
         conn.close()
         
-        self.populate_table(rows)
+        # Filter by cost range
+        min_cost = self.min_cost.value()
+        max_cost = self.max_cost.value()
+        
+        filtered_rows = []
+        for row in all_rows:
+            total_cost = 0.0
+            try:
+                spare_parts = json.loads(row[11]) if row[11] else []
+                for part in spare_parts:
+                    total_cost += float(part.get('total', 0))
+            except:
+                pass
+            try:
+                labour_works = json.loads(row[12]) if row[12] else []
+                for work in labour_works:
+                    total_cost += float(work.get('work_cost', 0))
+            except:
+                pass
+            
+            if min_cost <= total_cost <= max_cost:
+                filtered_rows.append(row[:11])
+        
+        self.populate_table(filtered_rows)
 
     def clear_filters(self):
         self.search_input.clear()
@@ -1027,7 +1399,67 @@ class JobCardRecordsPage(QWidget):
         self.date_filter_type.setCurrentIndex(0)
         self.start_date.setDate(QDate.currentDate().addDays(-30))
         self.end_date.setDate(QDate.currentDate())
+        self.min_cost.setValue(0)
+        self.max_cost.setValue(9999999)
         self.load_records()
+    
+    def export_data(self):
+        """Export filtered data to CSV"""
+        try:
+            csv_content = "Job No,Company No,Vehicle No,Driver,Make,Model,Type,Site,Section,Start Date,Spare Parts Cost,Labour Cost,Grand Total\n"
+            
+            for row in range(self.table.rowCount()):
+                job_no = self.table.item(row, 1).text()
+                company_no = self.table.item(row, 2).text()
+                vehicle_no = self.table.item(row, 3).text()
+                driver = self.table.item(row, 4).text()
+                make = self.table.item(row, 5).text()
+                model = self.table.item(row, 6).text()
+                type_val = self.table.item(row, 7).text()
+                site = self.table.item(row, 8).text()
+                section = self.table.item(row, 9).text()
+                start_date = self.table.item(row, 10).text()
+                
+                # Get costs from database
+                record_id = int(self.table.item(row, 0).text())
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("SELECT spare_parts, labour_works FROM job_cards WHERE id=?", (record_id,))
+                data = c.fetchone()
+                conn.close()
+                
+                spare_cost = 0.0
+                labour_cost = 0.0
+                
+                try:
+                    spare_parts = json.loads(data[0]) if data[0] else []
+                    for part in spare_parts:
+                        spare_cost += float(part.get('total', 0))
+                except:
+                    pass
+                
+                try:
+                    labour_works = json.loads(data[1]) if data[1] else []
+                    for work in labour_works:
+                        labour_cost += float(work.get('work_cost', 0))
+                except:
+                    pass
+                
+                grand_total = spare_cost + labour_cost
+                
+                csv_content += f'"{job_no}","{company_no}","{vehicle_no}","{driver}","{make}","{model}","{type_val}","{site}","{section}","{start_date}",{spare_cost:.2f},{labour_cost:.2f},{grand_total:.2f}\n'
+            
+            # Save to file
+            from datetime import datetime
+            filename = f"job_cards_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            filepath = f"/Users/darkcyph7/Documents/GitHub/Senarath_Workshop/{filename}"
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(csv_content)
+            
+            QMessageBox.information(self, "Export Successful ✅", f"Data exported to:\n{filename}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error", f"Failed to export data:\n{str(e)}")
 
     def populate_table(self, rows):
         self.table.setRowCount(len(rows))
@@ -1050,7 +1482,7 @@ class JobCardRecordsPage(QWidget):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""SELECT job_no, company_no, vehicle_no, driver, make, model, type, 
-                     site, section, hr_km, start_date, end_date, description, spare_parts
+                     site, section, hr_km, start_date, end_date, description, spare_parts, labour_works
                      FROM job_cards WHERE id=?""", (record_id,))
         row = c.fetchone()
         conn.close()
@@ -1061,7 +1493,7 @@ class JobCardRecordsPage(QWidget):
                 'driver': row[3], 'make': row[4], 'model': row[5], 'type': row[6],
                 'site': row[7], 'section': row[8], 'hr_km': row[9],
                 'start_date': row[10], 'end_date': row[11], 'description': row[12],
-                'spare_parts': row[13]
+                'spare_parts': row[13], 'labour_works': row[14]
             }
             dialog = JobCardDetailDialog(job_data, self)
             dialog.exec()

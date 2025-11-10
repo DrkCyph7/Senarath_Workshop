@@ -3,13 +3,15 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QLabel, QLineEdit, QTextEdit, QPushButton,
     QDateEdit, QComboBox, QFrame, QScrollArea, QHBoxLayout, QMessageBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox,
-    QCompleter, QListWidget, QListWidgetItem
+    QCompleter, QListWidget, QListWidgetItem, QDoubleSpinBox
 )
 from PySide6.QtCore import QDate, Qt, QStringListModel, QSortFilterProxyModel
 from PySide6.QtGui import QFont
 from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
+
+GRADES = ["Grade1", "Grade2", "Grade3", "Grade4", "Helper"]
 
 
 class SparePartDialog(QDialog):
@@ -156,12 +158,319 @@ class SparePartDialog(QDialog):
         }
 
 
+class LabourWorkDialog(QDialog):
+    def __init__(self, parent=None, edit_data=None, labour_list=None):
+        super().__init__(parent)
+        self.setWindowTitle("Add/Edit Labour Work")
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(500)
+        self.labour_list = labour_list or []
+        self.labour_rates = {}
+        self.selected_labour = []
+        
+        # Load labour rates from database
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT grade, cost_per_hour FROM labour_rates")
+        for row in c.fetchall():
+            self.labour_rates[row[0]] = row[1]
+        conn.close()
+        
+        # Modern dialog styling
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {ColorPalette.CARD_BG};
+            }}
+            QLabel {{
+                color: {ColorPalette.TEXT_PRIMARY};
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+                font-size: {Typography.SIZE_SMALL}px;
+                background: transparent;
+            }}
+            QLineEdit, QTextEdit, QComboBox, QDoubleSpinBox {{
+                background-color: #fafafa;
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                padding: 8px 11px;
+                font-size: {Typography.SIZE_SMALL}px;
+            }}
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDoubleSpinBox:focus {{
+                border: 2px solid {ColorPalette.ACCENT_PRIMARY};
+                background-color: #ffffff;
+            }}
+            QTextEdit {{
+                min-height: 70px;
+            }}
+            QTableWidget {{
+                background-color: {ColorPalette.CARD_BG};
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: 6px;
+                gridline-color: #f0f0f0;
+                font-size: 12px;
+            }}
+            QHeaderView::section {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+                padding: 8px;
+                border: none;
+                font-weight: 700;
+                font-size: 11px;
+            }}
+            QTableWidget::item {{
+                padding: 6px;
+                border: none;
+            }}
+            QTableWidget::item:selected {{
+                background-color: #e8f4f0;
+            }}
+            QPushButton {{
+                border: none;
+                border-radius: 6px;
+                font-weight: 600;
+                font-size: 12px;
+                padding: 8px 14px;
+            }}
+            QPushButton#add {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+            }}
+            QPushButton#add:hover {{
+                opacity: 0.9;
+            }}
+            QPushButton#remove {{
+                background-color: #c84343;
+                color: white;
+            }}
+            QPushButton#remove:hover {{
+                background-color: #b03636;
+            }}
+            QDialogButtonBox QPushButton {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+                border: none;
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+                padding: 9px 18px;
+                font-weight: {Typography.WEIGHT_SEMIBOLD};
+                min-width: 75px;
+            }}
+            QDialogButtonBox QPushButton:hover {{
+                opacity: 0.9;
+            }}
+            QDialogButtonBox QPushButton[text="Cancel"] {{
+                background-color: #e8e8e8;
+                color: #333;
+            }}
+        """)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(14)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title = QLabel("👷 Labour Work Details")
+        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
+        title.setStyleSheet("color: #1a1a1a; padding-bottom: 6px;")
+        layout.addWidget(title)
+        
+        form_layout = QGridLayout()
+        form_layout.setSpacing(10)
+        form_layout.setVerticalSpacing(14)
+        
+        # Work Description
+        self.description_input = QTextEdit()
+        self.description_input.setPlaceholderText("e.g., Engine oil change and filter replacement")
+        
+        # Working Hours
+        self.hours_input = QDoubleSpinBox()
+        self.hours_input.setMinimum(0.0)
+        self.hours_input.setMaximum(999.99)
+        self.hours_input.setValue(1.0)
+        self.hours_input.setSingleStep(0.5)
+        self.hours_input.setDecimals(2)
+        self.hours_input.setSuffix(" hrs")
+        self.hours_input.valueChanged.connect(self.update_cost)
+        
+        form_layout.addWidget(QLabel("Work Description:"), 0, 0, 1, 2)
+        form_layout.addWidget(self.description_input, 1, 0, 1, 2)
+        
+        form_layout.addWidget(QLabel("Working Hours:"), 2, 0)
+        form_layout.addWidget(self.hours_input, 2, 1)
+        
+        layout.addLayout(form_layout)
+        
+        # Labour Selection Section
+        labour_label = QLabel("👷 Select Labour (Add multiple if needed)")
+        labour_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        labour_label.setStyleSheet(f"color: {ColorPalette.ACCENT_PRIMARY}; padding: 10px 0px 5px 0px;")
+        layout.addWidget(labour_label)
+        
+        # Labour selector with add button
+        selector_layout = QHBoxLayout()
+        selector_layout.setSpacing(8)
+        
+        self.labour_selector = QComboBox()
+        self.labour_selector.addItems(self.labour_list)
+        selector_layout.addWidget(self.labour_selector, 1)
+        
+        add_labour_btn = QPushButton("➕ Add")
+        add_labour_btn.setObjectName("add")
+        add_labour_btn.setMaximumWidth(80)
+        add_labour_btn.clicked.connect(self.add_labour_to_list)
+        selector_layout.addWidget(add_labour_btn)
+        
+        layout.addLayout(selector_layout)
+        
+        # Selected labour table
+        self.labour_table = QTableWidget()
+        self.labour_table.setColumnCount(4)
+        self.labour_table.setHorizontalHeaderLabels(["Labour Name", "Grade", "Rate/hr", "Action"])
+        self.labour_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.labour_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.labour_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.labour_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.labour_table.setMinimumHeight(150)
+        self.labour_table.setMaximumHeight(200)
+        layout.addWidget(self.labour_table)
+        
+        # Work cost summary
+        cost_layout = QHBoxLayout()
+        cost_layout.addStretch()
+        cost_layout.addWidget(QLabel("Total Work Cost: "))
+        self.work_cost_label = QLineEdit()
+        self.work_cost_label.setReadOnly(True)
+        self.work_cost_label.setText("Rs. 0.00")
+        self.work_cost_label.setMaximumWidth(150)
+        cost_layout.addWidget(self.work_cost_label)
+        layout.addLayout(cost_layout)
+        
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        
+        # If editing, populate fields
+        if edit_data:
+            self.description_input.setPlainText(edit_data.get('description', ''))
+            self.hours_input.setValue(float(edit_data.get('hours', 1.0)))
+            
+            # Load selected labour list
+            labour_list_str = edit_data.get('labour_list', '[]')
+            try:
+                import json
+                self.selected_labour = json.loads(labour_list_str)
+                self.refresh_labour_table()
+            except:
+                self.selected_labour = []
+    
+    def add_labour_to_list(self):
+        """Add selected labour to the table"""
+        labour_name = self.labour_selector.currentText()
+        
+        if not labour_name:
+            QMessageBox.warning(self, "Error", "Please select a labour")
+            return
+        
+        # Check if already added
+        for labour in self.selected_labour:
+            if labour['name'] == labour_name:
+                QMessageBox.warning(self, "Error", f"{labour_name} is already added")
+                return
+        
+        # Get labour grade and rate
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT grade FROM labour WHERE name = ?", (labour_name,))
+        result = c.fetchone()
+        conn.close()
+        
+        if result:
+            grade = result[0]
+            rate = self.labour_rates.get(grade, 0.0)
+            
+            self.selected_labour.append({
+                'name': labour_name,
+                'grade': grade,
+                'rate': rate
+            })
+            
+            self.refresh_labour_table()
+            self.update_cost()
+    
+    def remove_labour_from_list(self, index):
+        """Remove labour from the table"""
+        if 0 <= index < len(self.selected_labour):
+            del self.selected_labour[index]
+            self.refresh_labour_table()
+            self.update_cost()
+    
+    def refresh_labour_table(self):
+        """Refresh the labour selection table"""
+        self.labour_table.setRowCount(len(self.selected_labour))
+        
+        for row_idx, labour in enumerate(self.selected_labour):
+            name_item = QTableWidgetItem(labour['name'])
+            name_item.setFlags(name_item.flags() ^ Qt.ItemIsEditable)
+            self.labour_table.setItem(row_idx, 0, name_item)
+            
+            grade_item = QTableWidgetItem(labour['grade'])
+            grade_item.setFlags(grade_item.flags() ^ Qt.ItemIsEditable)
+            self.labour_table.setItem(row_idx, 1, grade_item)
+            
+            rate_item = QTableWidgetItem(f"Rs. {labour['rate']:.2f}")
+            rate_item.setFlags(rate_item.flags() ^ Qt.ItemIsEditable)
+            self.labour_table.setItem(row_idx, 2, rate_item)
+            
+            # Remove button
+            remove_btn = QPushButton("🗑")
+            remove_btn.setObjectName("remove")
+            remove_btn.setMaximumWidth(40)
+            remove_btn.clicked.connect(lambda checked, r=row_idx: self.remove_labour_from_list(r))
+            self.labour_table.setCellWidget(row_idx, 3, remove_btn)
+    
+    def update_cost(self):
+        """Calculate work cost based on hours and all labour rates"""
+        try:
+            hours = self.hours_input.value()
+            total_cost = 0.0
+            
+            for labour in self.selected_labour:
+                rate = labour.get('rate', 0.0)
+                total_cost += hours * rate
+            
+            self.work_cost_label.setText(f"Rs. {total_cost:.2f}")
+        except ValueError:
+            self.work_cost_label.setText("Rs. 0.00")
+    
+    def get_data(self):
+        import json
+        
+        total_cost = 0.0
+        try:
+            hours = self.hours_input.value()
+            for labour in self.selected_labour:
+                rate = labour.get('rate', 0.0)
+                total_cost += hours * rate
+        except ValueError:
+            total_cost = 0.0
+        
+        return {
+            'description': self.description_input.toPlainText().strip(),
+            'hours': str(self.hours_input.value()),
+            'labour_list': json.dumps(self.selected_labour),
+            'work_cost': f"{total_cost:.2f}"
+        }
+
+
 class JobCardPage(QWidget):
     def __init__(self, parent=None):
         super().__init__()
         self.parent = parent
         self.conn = sqlite3.connect(DB_PATH)
         self.spare_parts_data = []
+        self.labour_works_data = []
 
         # === Professional UI Colors ===
         bg_color = "#f5f5f5"
@@ -467,16 +776,16 @@ class JobCardPage(QWidget):
 
         grid.addWidget(create_label("Make"), 3, 0)
         grid.addWidget(self.make_input, 3, 1)
-        grid.addWidget(create_label("Hr/Km Reading"), 3, 2)
-        grid.addWidget(self.hr_km_input, 3, 3)
+        grid.addWidget(create_label("Model"), 3, 2)
+        grid.addWidget(self.model_input, 3, 3)
 
-        grid.addWidget(create_label("Model"), 4, 0)
-        grid.addWidget(self.model_input, 4, 1)
-        grid.addWidget(create_label("Start Date"), 4, 2)
-        grid.addWidget(self.date_input, 4, 3)
+        grid.addWidget(create_label("Type"), 4, 0)
+        grid.addWidget(self.type_input, 4, 1)
+        grid.addWidget(create_label("Hr/Km Reading"), 4, 2)
+        grid.addWidget(self.hr_km_input, 4, 3)
 
-        grid.addWidget(create_label("Type"), 5, 0)
-        grid.addWidget(self.type_input, 5, 1)
+        grid.addWidget(create_label("Start Date"), 5, 0)
+        grid.addWidget(self.date_input, 5, 1)
         grid.addWidget(create_label("End Date"), 5, 2)
         grid.addWidget(self.end_date_input, 5, 3)
 
@@ -566,6 +875,119 @@ class JobCardPage(QWidget):
         spare_layout.addLayout(spare_btn_layout)
         
         root_layout.addWidget(spare_card)
+
+        # === Labour Works Card ===
+        labour_card = QFrame()
+        labour_card.setObjectName("card")
+        labour_layout = QVBoxLayout(labour_card)
+        labour_layout.setSpacing(12)
+        
+        labour_header = QHBoxLayout()
+        labour_header.setSpacing(10)
+        labour_title = QLabel("👷 Labour Works")
+        labour_title.setObjectName("section_title")
+        labour_header.addWidget(labour_title)
+        labour_header.addStretch()
+        
+        add_work_btn = QPushButton("+ Add Work")
+        add_work_btn.setObjectName("secondary")
+        add_work_btn.setFixedHeight(32)
+        add_work_btn.setMaximumWidth(120)
+        add_work_btn.setCursor(Qt.PointingHandCursor)
+        add_work_btn.clicked.connect(self.add_labour_work)
+        labour_header.addWidget(add_work_btn)
+        
+        labour_layout.addLayout(labour_header)
+        
+        # Labour works table
+        self.labour_table = QTableWidget()
+        self.labour_table.setColumnCount(7)
+        self.labour_table.setHorizontalHeaderLabels(["#", "Description", "Hours", "Labour", "Grade", "Rate/hr", "Cost"])
+        self.labour_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.labour_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.labour_table.setMinimumHeight(180)
+        self.labour_table.setMaximumHeight(260)
+        self.labour_table.setSelectionBehavior(QTableWidget.SelectRows)
+        labour_layout.addWidget(self.labour_table)
+        
+        # Labour Total Cost
+        labour_total_layout = QHBoxLayout()
+        labour_total_layout.addStretch()
+        self.labour_total_label = QLabel("Labour Total: Rs. 0.00")
+        self.labour_total_label.setObjectName("total_label")
+        self.labour_total_label.setStyleSheet("font-size: 13px; padding: 8px 12px; background-color: #e8f4f0; border-radius: 6px;")
+        labour_total_layout.addWidget(self.labour_total_label)
+        labour_layout.addLayout(labour_total_layout)
+        
+        # Labour work action buttons
+        labour_btn_layout = QHBoxLayout()
+        labour_btn_layout.setSpacing(8)
+        
+        edit_work_btn = QPushButton("✏️ Edit")
+        edit_work_btn.setObjectName("muted")
+        edit_work_btn.setFixedHeight(32)
+        edit_work_btn.setMaximumWidth(100)
+        edit_work_btn.setCursor(Qt.PointingHandCursor)
+        edit_work_btn.clicked.connect(self.edit_labour_work)
+        
+        delete_work_btn = QPushButton("🗑️ Delete")
+        delete_work_btn.setObjectName("danger")
+        delete_work_btn.setFixedHeight(32)
+        delete_work_btn.setMaximumWidth(100)
+        delete_work_btn.setCursor(Qt.PointingHandCursor)
+        delete_work_btn.clicked.connect(self.delete_labour_work)
+        
+        labour_btn_layout.addWidget(edit_work_btn)
+        labour_btn_layout.addWidget(delete_work_btn)
+        labour_btn_layout.addStretch()
+        labour_layout.addLayout(labour_btn_layout)
+        
+        root_layout.addWidget(labour_card)
+
+        # === Grand Total (Spare Parts + Labour) ===
+        grand_card = QFrame()
+        grand_card.setObjectName("card")
+        grand_layout = QVBoxLayout(grand_card)
+        grand_layout.setContentsMargins(18, 16, 18, 16)
+        
+        grand_total_inner = QHBoxLayout()
+        grand_total_inner.addStretch()
+        
+        spare_total_lbl = QLabel("Spare Parts: ")
+        spare_total_lbl.setObjectName("total_label")
+        spare_total_lbl.setStyleSheet("font-size: 12px;")
+        self.spare_total_display = QLabel("Rs. 0.00")
+        self.spare_total_display.setObjectName("total_label")
+        self.spare_total_display.setStyleSheet("font-size: 12px; font-weight: 700;")
+        
+        labour_cost_lbl = QLabel("Labour Cost: ")
+        labour_cost_lbl.setObjectName("total_label")
+        labour_cost_lbl.setStyleSheet("font-size: 12px;")
+        self.labour_cost_display = QLabel("Rs. 0.00")
+        self.labour_cost_display.setObjectName("total_label")
+        self.labour_cost_display.setStyleSheet("font-size: 12px; font-weight: 700;")
+        
+        grand_separator = QLabel("  |  ")
+        grand_separator.setStyleSheet("font-size: 12px; color: #ccc;")
+        
+        grand_lbl = QLabel("GRAND TOTAL: ")
+        grand_lbl.setObjectName("total_label")
+        grand_lbl.setStyleSheet("font-size: 14px;")
+        self.grand_total_display = QLabel("Rs. 0.00")
+        self.grand_total_display.setObjectName("total_label")
+        self.grand_total_display.setStyleSheet("font-size: 14px; font-weight: 700; color: #c84343;")
+        
+        grand_total_inner.addWidget(spare_total_lbl)
+        grand_total_inner.addWidget(self.spare_total_display)
+        grand_total_inner.addSpacing(30)
+        grand_total_inner.addWidget(labour_cost_lbl)
+        grand_total_inner.addWidget(self.labour_cost_display)
+        grand_total_inner.addWidget(grand_separator)
+        grand_total_inner.addWidget(grand_lbl)
+        grand_total_inner.addWidget(self.grand_total_display)
+        
+        grand_layout.addLayout(grand_total_inner)
+        root_layout.addWidget(grand_card)
 
         # === Action Buttons ===
         btn_row = QHBoxLayout()
@@ -681,6 +1103,12 @@ class JobCardPage(QWidget):
         cur.execute("SELECT name FROM sections")
         self.section_input.clear()
         [self.section_input.addItem(s[0]) for s in cur.fetchall()]
+
+        # Labour - build lookup (renamed from technicians)
+        cur.execute("SELECT name FROM labour ORDER BY name")
+        labour_names = [t[0] for t in cur.fetchall()]
+        self.labour_names = labour_names
+        self.technician_names = labour_names  # Keep for backwards compatibility
 
     def on_company_completer_activated(self, text):
         """Handle when user selects from company completer"""
@@ -851,6 +1279,7 @@ class JobCardPage(QWidget):
             if data['description']:
                 self.spare_parts_data.append(data)
                 self.refresh_spare_table()
+                self.update_grand_totals()
 
     def edit_spare_part(self):
         current_row = self.spare_table.currentRow()
@@ -865,6 +1294,7 @@ class JobCardPage(QWidget):
             if data['description']:
                 self.spare_parts_data[current_row] = data
                 self.refresh_spare_table()
+                self.update_grand_totals()
 
     def delete_spare_part(self):
         current_row = self.spare_table.currentRow()
@@ -878,6 +1308,7 @@ class JobCardPage(QWidget):
         if confirm == QMessageBox.Yes:
             del self.spare_parts_data[current_row]
             self.refresh_spare_table()
+            self.update_grand_totals()
 
     def refresh_spare_table(self):
         self.spare_table.setRowCount(len(self.spare_parts_data))
@@ -901,6 +1332,124 @@ class JobCardPage(QWidget):
                 pass
         
         self.grand_total_label.setText(f"Grand Total: Rs. {grand_total:,.2f}")
+        # Auto-update grand totals when spare parts change
+        self.update_grand_totals()
+
+    def add_labour_work(self):
+        import json
+        
+        dialog = LabourWorkDialog(self, labour_list=self.labour_names)
+        if dialog.exec():
+            data = dialog.get_data()
+            if data['description']:
+                try:
+                    labour_list = json.loads(data.get('labour_list', '[]'))
+                    if labour_list:
+                        self.labour_works_data.append(data)
+                        self.refresh_labour_table()
+                        self.update_grand_totals()
+                    else:
+                        QMessageBox.warning(self, "Error", "Please add at least one labour to the work")
+                except:
+                    QMessageBox.warning(self, "Error", "Invalid labour selection")
+
+    def edit_labour_work(self):
+        import json
+        
+        current_row = self.labour_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a labour work to edit.")
+            return
+        
+        current_data = self.labour_works_data[current_row]
+        dialog = LabourWorkDialog(self, edit_data=current_data, labour_list=self.labour_names)
+        if dialog.exec():
+            data = dialog.get_data()
+            if data['description']:
+                try:
+                    labour_list = json.loads(data.get('labour_list', '[]'))
+                    if labour_list:
+                        self.labour_works_data[current_row] = data
+                        self.refresh_labour_table()
+                        self.update_grand_totals()
+                    else:
+                        QMessageBox.warning(self, "Error", "Please add at least one labour to the work")
+                except:
+                    QMessageBox.warning(self, "Error", "Invalid labour selection")
+
+    def delete_labour_work(self):
+        current_row = self.labour_table.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a labour work to delete.")
+            return
+        
+        confirm = QMessageBox.question(self, "Confirm Delete", 
+                                      "Are you sure you want to delete this labour work?",
+                                      QMessageBox.Yes | QMessageBox.No)
+        if confirm == QMessageBox.Yes:
+            del self.labour_works_data[current_row]
+            self.refresh_labour_table()
+            self.update_grand_totals()
+
+    def refresh_labour_table(self):
+        import json
+        
+        self.labour_table.setRowCount(len(self.labour_works_data))
+        self.labour_table.setColumnCount(5)
+        self.labour_table.setHorizontalHeaderLabels(["#", "Description", "Hours", "Labour Assigned", "Cost"])
+        
+        labour_total = 0.0
+        
+        for row_idx, work in enumerate(self.labour_works_data):
+            self.labour_table.setItem(row_idx, 0, QTableWidgetItem(str(row_idx + 1)))
+            self.labour_table.setItem(row_idx, 1, QTableWidgetItem(work.get('description', '')))
+            self.labour_table.setItem(row_idx, 2, QTableWidgetItem(f"{work.get('hours', '')} hrs"))
+            
+            # Show all labour names for this work
+            try:
+                labour_list = json.loads(work.get('labour_list', '[]'))
+                labour_names = ', '.join([l['name'] for l in labour_list])
+                self.labour_table.setItem(row_idx, 3, QTableWidgetItem(labour_names))
+            except:
+                self.labour_table.setItem(row_idx, 3, QTableWidgetItem(''))
+            
+            cost_text = work.get('work_cost', '0')
+            self.labour_table.setItem(row_idx, 4, QTableWidgetItem(f"Rs. {cost_text}"))
+            
+            try:
+                cost = float(cost_text)
+                labour_total += cost
+            except ValueError:
+                pass
+        
+        self.labour_total_label.setText(f"Labour Total: Rs. {labour_total:,.2f}")
+
+    def update_grand_totals(self):
+        """Calculate and display spare parts, labour, and grand totals"""
+        # Calculate spare parts total
+        spare_total = 0.0
+        for part in self.spare_parts_data:
+            try:
+                total = float(part.get('total', 0))
+                spare_total += total
+            except ValueError:
+                pass
+        
+        # Calculate labour total
+        labour_total = 0.0
+        for work in self.labour_works_data:
+            try:
+                cost = float(work.get('work_cost', 0))
+                labour_total += cost
+            except ValueError:
+                pass
+        
+        # Update displays
+        grand_total = spare_total + labour_total
+        
+        self.spare_total_display.setText(f"Rs. {spare_total:,.2f}")
+        self.labour_cost_display.setText(f"Rs. {labour_total:,.2f}")
+        self.grand_total_display.setText(f"Rs. {grand_total:,.2f}")
 
     def clear_all_fields(self):
         # Only ask for confirmation when Clear button is clicked
@@ -929,7 +1478,10 @@ class JobCardPage(QWidget):
         self.end_date_input.setDate(QDate.currentDate())
         self.desc_input.clear()
         self.spare_parts_data = []
+        self.labour_works_data = []
         self.refresh_spare_table()
+        self.refresh_labour_table()
+        self.update_grand_totals()
 
     def save_job_card(self):
         job_no = self.job_no_input.text().strip()
@@ -957,13 +1509,14 @@ class JobCardPage(QWidget):
 
         import json
         spare_parts_json = json.dumps(self.spare_parts_data)
+        labour_works_json = json.dumps(self.labour_works_data)
 
         try:
             cur.execute("""
                 INSERT INTO job_cards (
                     job_no, company_no, vehicle_no, driver, make, model, type,
-                    site, section, hr_km, start_date, end_date, description, spare_parts
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    site, section, hr_km, start_date, end_date, description, spare_parts, labour_works
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 job_no,
                 company_no,
@@ -978,7 +1531,8 @@ class JobCardPage(QWidget):
                 self.date_input.date().toString("yyyy-MM-dd"),
                 self.end_date_input.date().toString("yyyy-MM-dd"),
                 self.desc_input.toPlainText(),
-                spare_parts_json
+                spare_parts_json,
+                labour_works_json
             ))
             self.conn.commit()
 

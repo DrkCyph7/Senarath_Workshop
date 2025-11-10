@@ -71,6 +71,16 @@ def setup_database() -> bool:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL
             )''',
+            'technicians': '''CREATE TABLE IF NOT EXISTS labour (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                site TEXT NOT NULL,
+                grade TEXT NOT NULL
+            )''',
+            'labour_rates': '''CREATE TABLE IF NOT EXISTS labour_rates (
+                grade TEXT PRIMARY KEY,
+                cost_per_hour REAL NOT NULL DEFAULT 100.00
+            )''',
             'job_cards': '''CREATE TABLE IF NOT EXISTS job_cards (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_no TEXT,
@@ -86,7 +96,8 @@ def setup_database() -> bool:
                 start_date TEXT,
                 end_date TEXT,
                 description TEXT,
-                spare_parts TEXT
+                spare_parts TEXT,
+                labour_works TEXT
             )'''
         }
         
@@ -164,6 +175,33 @@ def _insert_sample_data(cursor: sqlite3.Cursor) -> None:
             ('Engine Repair',),
         ]
         cursor.executemany("INSERT INTO sections (name) VALUES (?)", sample_sections)
+    
+    # Sample technicians
+    cursor.execute("SELECT COUNT(*) FROM labour")
+    if cursor.fetchone()[0] == 0:
+        sample_labour = [
+            ('Ravi Kumar', 'Main Workshop', 'Grade1'),
+            ('Arjun Singh', 'Main Workshop', 'Grade2'),
+            ('Vikram Patel', 'Site A - Colombo', 'Grade3'),
+            ('Rajesh Sharma', 'Site A - Colombo', 'Grade4'),
+            ('Amit Desai', 'Site B - Gampaha', 'Helper'),
+            ('Rohit Gupta', 'Site B - Gampaha', 'Grade1'),
+            ('Sandeep Nair', 'Site C - Kandy', 'Grade2'),
+            ('Abhishek Iyer', 'Site C - Kandy', 'Grade3'),
+        ]
+        cursor.executemany("INSERT INTO labour (name, site, grade) VALUES (?, ?, ?)", sample_labour)
+    
+    # Labour rates
+    cursor.execute("SELECT COUNT(*) FROM labour_rates")
+    if cursor.fetchone()[0] == 0:
+        labour_rates = [
+            ('Grade1', 250.00),
+            ('Grade2', 300.00),
+            ('Grade3', 350.00),
+            ('Grade4', 400.00),
+            ('Helper', 150.00),
+        ]
+        cursor.executemany("INSERT INTO labour_rates (grade, cost_per_hour) VALUES (?, ?)", labour_rates)
 
 
 class MainWindow(QStackedWidget):
