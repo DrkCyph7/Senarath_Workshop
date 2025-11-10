@@ -76,3 +76,16 @@ node_modules/
 __pypackages__/
 build/
 dist/
+
+# PyInstaller
+*.manifest
+*.spec
+build/
+dist/
+*.exe
+
+# Project-specific
+*.db
+*.json.bak
+output/
+reports/

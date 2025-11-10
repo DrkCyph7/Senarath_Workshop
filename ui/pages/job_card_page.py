@@ -2,9 +2,10 @@ import sqlite3
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QGridLayout, QLabel, QLineEdit, QTextEdit, QPushButton,
     QDateEdit, QComboBox, QFrame, QScrollArea, QHBoxLayout, QMessageBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox
+    QTableWidget, QTableWidgetItem, QHeaderView, QDialog, QDialogButtonBox,
+    QCompleter, QListWidget, QListWidgetItem
 )
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, QStringListModel, QSortFilterProxyModel
 from PySide6.QtGui import QFont
 from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
@@ -395,13 +396,32 @@ class JobCardPage(QWidget):
         self.job_no_input.setText(self.generate_job_number())
         self.job_no_input.setPlaceholderText("Auto-generated or enter custom job number")
 
-        self.driver_input = QComboBox()
-        self.company_no_input = QComboBox()
-        self.company_no_input.currentTextChanged.connect(self.auto_fill_from_company)
+        self.driver_input = QLineEdit()
+        self.driver_input.setPlaceholderText("e.g., John Doe (Type for suggestions)")
+        self.driver_input.textChanged.connect(self.on_driver_changed)
+        self.driver_completer = QCompleter()
+        self.driver_input.setCompleter(self.driver_completer)
+        
+        self.company_no_input = QLineEdit()
+        self.company_no_input.setPlaceholderText("e.g., C-001 (Type for suggestions)")
+        self.company_no_input.textChanged.connect(self.on_company_no_changed)
+        self.company_no_completer = QCompleter()
+        self.company_no_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.company_no_completer.setFilterMode(Qt.MatchContains)
+        self.company_no_completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.company_no_completer.activated.connect(self.on_company_completer_activated)
+        self.company_no_input.setCompleter(self.company_no_completer)
 
         self.site_input = QComboBox()
-        self.vehicle_input = QComboBox()
-        self.vehicle_input.currentTextChanged.connect(self.auto_fill_from_vehicle)
+        self.vehicle_input = QLineEdit()
+        self.vehicle_input.setPlaceholderText("e.g., REG-001 (Type for suggestions)")
+        self.vehicle_input.textChanged.connect(self.on_vehicle_no_changed)
+        self.vehicle_no_completer = QCompleter()
+        self.vehicle_no_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.vehicle_no_completer.setFilterMode(Qt.MatchContains)
+        self.vehicle_no_completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.vehicle_no_completer.activated.connect(self.on_vehicle_completer_activated)
+        self.vehicle_input.setCompleter(self.vehicle_no_completer)
 
         self.section_input = QComboBox()
         
@@ -587,27 +607,70 @@ class JobCardPage(QWidget):
         
         cur = self.conn.cursor()
 
-        # Vehicles
+        # Build comprehensive vehicle data for bidirectional lookup
         cur.execute("SELECT company_no, number, make, model, type FROM vehicles")
-        vehicles = cur.fetchall()
-        self.company_no_input.clear()
-        self.vehicle_input.clear()
-        company_nos = set()
-        vehicle_nos = set()
+        self.vehicles_data = {}  # {vehicle_number: {company_no, make, model, type}} - for vehicles with numbers
+        self.company_vehicles = {}  # {company_no: [{make, model, type, number}, ...]} - all vehicles per company
+        self.vehicle_to_company = {}  # {vehicle_number: company_no} - quick lookup
+        self.company_to_vehicles = {}  # {company_no: [vehicle_numbers]} - vehicles per company
         
-        for v in vehicles:
-            company_no, number, *_ = v
-            if company_no and company_no not in company_nos:
-                self.company_no_input.addItem(company_no)
+        vehicle_numbers = set()
+        company_nos = set()
+        
+        for row in cur.fetchall():
+            company_no, number, make, model, vtype = row
+            
+            # Always store company info
+            if company_no:
                 company_nos.add(company_no)
-            if number and number != "-" and number not in vehicle_nos:
-                self.vehicle_input.addItem(number)
-                vehicle_nos.add(number)
+                if company_no not in self.company_vehicles:
+                    self.company_vehicles[company_no] = []
+                
+                # Store vehicle info under company
+                self.company_vehicles[company_no].append({
+                    'number': number if (number and number != "-") else None,
+                    'make': make,
+                    'model': model,
+                    'type': vtype
+                })
+            
+            # If vehicle has a number, index it
+            if number and number != "-":
+                self.vehicles_data[number] = {
+                    'company_no': company_no,
+                    'make': make,
+                    'model': model,
+                    'type': vtype
+                }
+                self.vehicle_to_company[number] = company_no
+                vehicle_numbers.add(number)
+                
+                if company_no:
+                    if company_no not in self.company_to_vehicles:
+                        self.company_to_vehicles[company_no] = []
+                    self.company_to_vehicles[company_no].append(number)
 
-        # Drivers
+        # Setup company_no auto-complete with all companies
+        company_model = QStringListModel(sorted(company_nos))
+        self.company_no_completer.setModel(company_model)
+        self.company_no_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.company_no_completer.setFilterMode(Qt.MatchContains)
+
+        # Setup vehicle_no auto-complete with vehicles that have numbers
+        vehicle_model = QStringListModel(sorted(vehicle_numbers))
+        self.vehicle_no_completer.setModel(vehicle_model)
+        self.vehicle_no_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.vehicle_no_completer.setFilterMode(Qt.MatchContains)
+
+        # Drivers - build lookup
         cur.execute("SELECT name FROM drivers")
-        self.driver_input.clear()
-        [self.driver_input.addItem(d[0]) for d in cur.fetchall()]
+        driver_names = [d[0] for d in cur.fetchall()]
+        self.driver_names = set(driver_names)
+        
+        driver_model = QStringListModel(sorted(driver_names))
+        self.driver_completer.setModel(driver_model)
+        self.driver_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.driver_completer.setFilterMode(Qt.MatchContains)
 
         # Sites
         cur.execute("SELECT name FROM sites")
@@ -619,48 +682,137 @@ class JobCardPage(QWidget):
         self.section_input.clear()
         [self.section_input.addItem(s[0]) for s in cur.fetchall()]
 
-    def auto_fill_from_company(self, company_no):
+    def on_company_completer_activated(self, text):
+        """Handle when user selects from company completer"""
+        # Trigger the change handler to process the selected company
+        self.on_company_no_changed(text)
+
+    def on_company_no_changed(self, company_no):
+        """Update vehicle suggestions and details when company_no changes"""
+        company_no = company_no.strip()
+        
         if not company_no:
+            # Clear vehicle and vehicle details
+            self.vehicle_input.blockSignals(True)
             self.vehicle_input.clear()
+            self.vehicle_input.blockSignals(False)
+            self.make_input.clear()
+            self.model_input.clear()
+            self.type_input.clear()
+            # Reset vehicle completer to show all vehicles
+            all_vehicles = sorted(self.vehicles_data.keys())
+            vehicle_model = QStringListModel(all_vehicles)
+            self.vehicle_no_completer.setModel(vehicle_model)
+            return
+        
+        # Check if company_no exists in our data
+        if company_no in self.company_vehicles:
+            # Get all vehicles for this company (including those without numbers)
+            vehicles_for_company = self.company_vehicles[company_no]
+            
+            # Get vehicle numbers for this company (may be empty)
+            vehicle_numbers_for_company = self.company_to_vehicles.get(company_no, [])
+            
+            # ONLY rebuild model if company was actually selected (exact match)
+            # Don't rebuild during partial typing
+            matching_companies = [c for c in self.company_vehicles.keys() if c.lower() == company_no.lower()]
+            
+            if matching_companies:
+                # Company exactly matches - update vehicle completer
+                vehicle_model = QStringListModel(sorted(vehicle_numbers_for_company))
+                self.vehicle_no_completer.setModel(vehicle_model)
+                
+                # If there's only one vehicle with a number for this company, auto-select it
+                if len(vehicle_numbers_for_company) == 1:
+                    self.vehicle_input.blockSignals(True)
+                    self.vehicle_input.setText(vehicle_numbers_for_company[0])
+                    self.vehicle_input.blockSignals(False)
+                    self._update_vehicle_details(vehicle_numbers_for_company[0])
+                # If there are no vehicles with numbers, show the first vehicle's details anyway
+                elif len(vehicle_numbers_for_company) == 0 and vehicles_for_company:
+                    self.vehicle_input.blockSignals(True)
+                    self.vehicle_input.clear()
+                    self.vehicle_input.blockSignals(False)
+                    # Use first vehicle data (even if it has no number)
+                    first_vehicle = vehicles_for_company[0]
+                    self.make_input.setText(first_vehicle.get('make', ''))
+                    self.model_input.setText(first_vehicle.get('model', ''))
+                    self.type_input.setText(first_vehicle.get('type', ''))
+                else:
+                    self.make_input.clear()
+                    self.model_input.clear()
+                    self.type_input.clear()
+            # If partial match during typing, don't update completer model
+        else:
+            # Reset vehicle completer to all vehicles
+            vehicle_numbers = sorted(self.vehicles_data.keys())
+            vehicle_model = QStringListModel(vehicle_numbers)
+            self.vehicle_no_completer.setModel(vehicle_model)
+            
+            self.make_input.clear()
+            self.model_input.clear()
+            self.type_input.clear()
+
+    def on_vehicle_completer_activated(self, text):
+        """Handle when user selects from vehicle completer"""
+        # Trigger the change handler to process the selected vehicle
+        self.on_vehicle_no_changed(text)
+
+    def on_vehicle_no_changed(self, vehicle_no):
+        """Update company_no and vehicle details when vehicle_no changes"""
+        vehicle_no = vehicle_no.strip()
+        
+        # If empty, clear everything
+        if not vehicle_no:
+            self.company_no_input.blockSignals(True)
+            self.company_no_input.clear()
+            self.company_no_input.blockSignals(False)
             self.make_input.clear()
             self.model_input.clear()
             self.type_input.clear()
             return
         
-        cur = self.conn.cursor()
-        cur.execute("SELECT number, make, model, type FROM vehicles WHERE company_no=?", (company_no,))
-        vehicles = cur.fetchall()
+        # Check if this is a COMPLETE match with our database
+        # Only update if it's a full match (not partial typing)
+        matching_vehicles = [v for v in self.vehicles_data.keys() if v.lower() == vehicle_no.lower()]
         
-        self.vehicle_input.blockSignals(True)
-        self.vehicle_input.clear()
-        
-        if vehicles:
-            for vehicle in vehicles:
-                if vehicle[0] and vehicle[0] != "-":
-                    self.vehicle_input.addItem(vehicle[0])
+        if matching_vehicles:
+            # Found exact match - do NOT rebuild model to keep popup open
+            matched_vehicle = matching_vehicles[0]
+            company_no = self.vehicle_to_company[matched_vehicle]
             
-            first_vehicle = vehicles[0]
-            self.vehicle_input.setCurrentIndex(0)
-            self.make_input.setText(first_vehicle[1] or "")
-            self.model_input.setText(first_vehicle[2] or "")
-            self.type_input.setText(first_vehicle[3] or "")
+            # Update company_no field without triggering its change handler
+            self.company_no_input.blockSignals(True)
+            self.company_no_input.setText(company_no)
+            self.company_no_input.blockSignals(False)
+            
+            # Update vehicle details
+            self._update_vehicle_details(matched_vehicle)
+        else:
+            # Partial match - user is still typing
+            # DO NOT rebuild the model - keep completer popup open for navigation
+            pass
+
+    def on_driver_changed(self, driver_name):
+        """Validate driver name when it changes"""
+        driver_name = driver_name.strip()
+        
+        # Just validate - driver field doesn't need to trigger other fields
+        if driver_name and driver_name not in self.driver_names:
+            # Not a valid driver - user is still typing
+            pass
+
+    def _update_vehicle_details(self, vehicle_no):
+        """Helper method to update make, model, type from vehicle data"""
+        if vehicle_no in self.vehicles_data:
+            data = self.vehicles_data[vehicle_no]
+            self.make_input.setText(data.get('make', ''))
+            self.model_input.setText(data.get('model', ''))
+            self.type_input.setText(data.get('type', ''))
         else:
             self.make_input.clear()
             self.model_input.clear()
             self.type_input.clear()
-        
-        self.vehicle_input.blockSignals(False)
-
-    def auto_fill_from_vehicle(self, number):
-        if not number:
-            return
-        cur = self.conn.cursor()
-        cur.execute("SELECT make, model, type FROM vehicles WHERE number=?", (number,))
-        row = cur.fetchone()
-        if row:
-            self.make_input.setText(row[0] or "")
-            self.model_input.setText(row[1] or "")
-            self.type_input.setText(row[2] or "")
 
     def on_date_changed(self):
         """Update job number when start date changes"""
@@ -766,7 +918,10 @@ class JobCardPage(QWidget):
     def _perform_clear(self):
         """Internal method to clear fields without confirmation"""
         self.job_no_input.setText(self.generate_job_number())
-        for combo in [self.company_no_input, self.vehicle_input, self.driver_input, self.site_input, self.section_input]:
+        self.company_no_input.clear()
+        self.vehicle_input.clear()
+        self.driver_input.clear()
+        for combo in [self.site_input, self.section_input]:
             combo.setCurrentIndex(-1)
         for line in [self.make_input, self.model_input, self.type_input, self.hr_km_input]:
             line.clear()
@@ -778,10 +933,19 @@ class JobCardPage(QWidget):
 
     def save_job_card(self):
         job_no = self.job_no_input.text().strip()
-        company_no = self.company_no_input.currentText().strip()
+        company_no = self.company_no_input.text().strip()
+        driver_name = self.driver_input.text().strip()
 
         if not company_no:
-            QMessageBox.warning(self, "Missing Field", "Please select a Company No.")
+            QMessageBox.warning(self, "Missing Field", "Please enter a Company No.")
+            return
+
+        if company_no not in self.company_to_vehicles and company_no not in self.company_vehicles:
+            QMessageBox.warning(self, "Invalid Company No", f"Company No '{company_no}' not found in database.")
+            return
+
+        if driver_name and driver_name not in self.driver_names:
+            QMessageBox.warning(self, "Invalid Driver", f"Driver '{driver_name}' not found in database.")
             return
 
         # Check if job_no already exists
@@ -803,8 +967,8 @@ class JobCardPage(QWidget):
             """, (
                 job_no,
                 company_no,
-                self.vehicle_input.currentText().strip() or "-",
-                self.driver_input.currentText().strip(),
+                self.vehicle_input.text().strip() or "-",
+                driver_name,
                 self.make_input.text(),
                 self.model_input.text(),
                 self.type_input.text(),

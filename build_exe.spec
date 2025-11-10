@@ -8,7 +8,6 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('ui/db/senarath.db', 'ui/db'),  # Include database file
         ('assets', 'assets'),              # Include assets folder if it has files
     ],
     hiddenimports=['PySide6'],
