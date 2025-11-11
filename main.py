@@ -81,6 +81,10 @@ def setup_database() -> bool:
                 grade TEXT PRIMARY KEY,
                 cost_per_hour REAL NOT NULL DEFAULT 100.00
             )''',
+            'outsource_types': '''CREATE TABLE IF NOT EXISTS outsource_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL
+            )''',
             'job_cards': '''CREATE TABLE IF NOT EXISTS job_cards (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_no TEXT,
@@ -97,7 +101,8 @@ def setup_database() -> bool:
                 end_date TEXT,
                 description TEXT,
                 spare_parts TEXT,
-                labour_works TEXT
+                labour_works TEXT,
+                outsource_works TEXT
             )'''
         }
         
@@ -202,6 +207,19 @@ def _insert_sample_data(cursor: sqlite3.Cursor) -> None:
             ('Helper', 150.00),
         ]
         cursor.executemany("INSERT INTO labour_rates (grade, cost_per_hour) VALUES (?, ?)", labour_rates)
+    
+    # Sample outsource types
+    cursor.execute("SELECT COUNT(*) FROM outsource_types")
+    if cursor.fetchone()[0] == 0:
+        sample_outsource = [
+            ('Welding',),
+            ('Painting',),
+            ('Alignment',),
+            ('Repair',),
+            ('Testing',),
+            ('Fabrication',),
+        ]
+        cursor.executemany("INSERT INTO outsource_types (name) VALUES (?)", sample_outsource)
 
 
 class MainWindow(QStackedWidget):

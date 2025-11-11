@@ -346,9 +346,10 @@ class DataManagerPage(QWidget):
         self.driver_btn = QPushButton("👤 Drivers")
         self.site_btn = QPushButton("📍 Sites")
         self.section_btn = QPushButton("🏗 Sections")
-        self.labour_btn = QPushButton("� Labour")
+        self.labour_btn = QPushButton("👷 Labour")
+        self.outsource_btn = QPushButton("🔨 Outsource Types")
 
-        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn, self.labour_btn]
+        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn, self.labour_btn, self.outsource_btn]
         
         for btn in self.tab_buttons:
             btn.setObjectName("tab")
@@ -422,6 +423,7 @@ class DataManagerPage(QWidget):
         self.site_btn.clicked.connect(lambda: self.switch_table("sites"))
         self.section_btn.clicked.connect(lambda: self.switch_table("sections"))
         self.labour_btn.clicked.connect(lambda: self.switch_table("labour"))
+        self.outsource_btn.clicked.connect(lambda: self.switch_table("outsource"))
         
         self.add_btn.clicked.connect(self.add_record)
         self.edit_btn.clicked.connect(self.edit_record)
@@ -465,6 +467,11 @@ class DataManagerPage(QWidget):
             self.labour_btn.setObjectName("tab_active")
             self.simple_input.setVisible(False)
             self.labour_rates_btn.setVisible(True)
+        elif table_name == "outsource":
+            self.outsource_btn.setObjectName("tab_active")
+            self.simple_input.setVisible(True)
+            self.simple_input.setPlaceholderText("Enter outsource work type...")
+            self.labour_rates_btn.setVisible(False)
         
         # Force style refresh
         for btn in self.tab_buttons:
@@ -496,6 +503,10 @@ class DataManagerPage(QWidget):
             c.execute("SELECT id, name, site, grade FROM labour ORDER BY name")
             data = c.fetchall()
             headers = ["ID", "Name", "Site", "Grade"]
+        elif self.current_table == "outsource":
+            c.execute("SELECT id, name FROM outsource_types ORDER BY name")
+            data = c.fetchall()
+            headers = ["ID", "Work Type"]
         else:
             data, headers = [], []
 
@@ -584,6 +595,8 @@ class DataManagerPage(QWidget):
                 c.execute("INSERT INTO sites (name) VALUES (?)", (text,))
             elif self.current_table == "sections":
                 c.execute("INSERT INTO sections (name) VALUES (?)", (text,))
+            elif self.current_table == "outsource":
+                c.execute("INSERT INTO outsource_types (name) VALUES (?)", (text,))
 
             conn.commit()
             conn.close()
@@ -674,7 +687,8 @@ class DataManagerPage(QWidget):
             
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
-            c.execute(f"UPDATE {self.current_table} SET name=? WHERE id=?", (text, record_id))
+            table_name = "outsource_types" if self.current_table == "outsource" else self.current_table
+            c.execute(f"UPDATE {table_name} SET name=? WHERE id=?", (text, record_id))
             conn.commit()
             conn.close()
             
@@ -698,7 +712,8 @@ class DataManagerPage(QWidget):
 
         for row in selected_rows:
             record_id = int(self.table.item(row.row(), 0).text())
-            c.execute(f"DELETE FROM {self.current_table} WHERE id=?", (record_id,))
+            table_name = "outsource_types" if self.current_table == "outsource" else self.current_table
+            c.execute(f"DELETE FROM {table_name} WHERE id=?", (record_id,))
         
         conn.commit()
         conn.close()

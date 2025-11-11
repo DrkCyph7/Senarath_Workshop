@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QGridLayout, QMessageBox, QScrollArea
 )
 from PySide6.QtCore import Qt, QTimer, QDateTime, QSize
-from PySide6.QtGui import QFont, QPixmap, QColor
+from PySide6.QtGui import QFont, QPixmap, QColor, QIcon
 from ui.theme import ColorPalette, Typography, Spacing, Styles
 
 
@@ -61,11 +61,11 @@ class StatCard(QFrame):
 
 
 class ModernActionTile(QPushButton):
-    """Modern action tile button"""
-    def __init__(self, icon, title, description, color, hover_color=None):
+    """Modern action tile button with icon on left and text on right"""
+    def __init__(self, icon_name, title, color, hover_color=None):
         super().__init__()
         self.setObjectName("action_tile")
-        self.setFixedHeight(120)
+        self.setMinimumHeight(80)
         self.setCursor(Qt.PointingHandCursor)
         
         if hover_color is None:
@@ -78,6 +78,8 @@ class ModernActionTile(QPushButton):
                 border: none;
                 border-radius: 12px;
                 font-weight: 600;
+                text-align: left;
+                padding: 0px;
             }}
             QPushButton#action_tile:hover {{
                 background-color: {hover_color};
@@ -87,27 +89,54 @@ class ModernActionTile(QPushButton):
             }}
         """)
         
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(12)
+        # Map icon names to icon characters (using Unicode geometric shapes)
+        icon_unicode_map = {
+            "document-new": "📄",  # Document
+            "folder-open": "📁",   # Folder
+            "settings": "⚙",       # Settings gear
+            "save": "💾",          # Floppy disk
+            "chart": "📊",         # Bar chart
+            "truck": "🚛"          # Truck
+        }
         
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet("font-size: 36px; background: transparent; color: white;")
+        # Get icon character
+        icon_char = icon_unicode_map.get(icon_name, "►")
+        
+        # Create main horizontal layout
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(16, 12, 20, 12)
+        main_layout.setSpacing(16)
+        
+        # Icon area - colored square with icon
+        icon_frame = QFrame()
+        icon_frame.setFixedSize(56, 56)
+        icon_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: rgba(255, 255, 255, 0.25);
+                border-radius: 8px;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+            }}
+        """)
+        icon_layout = QVBoxLayout(icon_frame)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        
+        icon_label = QLabel(icon_char)
+        icon_label.setStyleSheet("background: transparent; color: white; font-size: 28px; font-weight: bold;")
         icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(icon_label)
+        icon_layout.addWidget(icon_label)
         
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 14px; font-weight: 700; color: white; background: transparent;")
-        title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title_label)
+        main_layout.addWidget(icon_frame, 0, Qt.AlignLeft | Qt.AlignVCenter)
         
-        desc_label = QLabel(description)
-        desc_label.setStyleSheet("font-size: 12px; font-weight: 400; color: white; background: transparent;")
-        desc_label.setAlignment(Qt.AlignCenter)
-        desc_label.setWordWrap(True)
-        layout.addWidget(desc_label)
+        # Text area
+        text_label = QLabel(title)
+        text_label.setStyleSheet("font-size: 15px; font-weight: 700; color: white; background: transparent;")
+        text_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        main_layout.addWidget(text_label, 1)
         
-        layout.addStretch()
+        # Arrow indicator
+        arrow_label = QLabel("→")
+        arrow_label.setStyleSheet("font-size: 18px; color: rgba(255, 255, 255, 0.6); background: transparent;")
+        main_layout.addWidget(arrow_label, 0, Qt.AlignRight | Qt.AlignVCenter)
 
 
 class HomePage(QWidget):
@@ -293,42 +322,42 @@ class HomePage(QWidget):
         actions_grid.setSpacing(16)
         actions_grid.setContentsMargins(0, 0, 0, 0)
 
-        # Action tiles with professional styling - 6 tiles in 3x2 grid
+        # Action tiles with horizontal layout - 2 columns
         action_new_job = ModernActionTile(
-            "📝", "New Job Card", "Create job entry", self.primary_color
+            "document-new", "New Job Card", self.primary_color
         )
         action_new_job.clicked.connect(self.main_window.go_to_jobcard)
         actions_grid.addWidget(action_new_job, 0, 0)
 
         action_records = ModernActionTile(
-            "📊", "View Records", "Browse records", self.primary_color
+            "folder-open", "View Records", self.primary_color
         )
         action_records.clicked.connect(self.main_window.go_to_records)
         actions_grid.addWidget(action_records, 0, 1)
 
         action_data = ModernActionTile(
-            "⚙️", "Data Manager", "Manage data", self.primary_color
+            "settings", "Data Manager", self.primary_color
         )
         action_data.clicked.connect(self.main_window.go_to_data_manager)
-        actions_grid.addWidget(action_data, 0, 2)
+        actions_grid.addWidget(action_data, 1, 0)
 
         action_backup = ModernActionTile(
-            "💾", "Backup & Restore", "Secure backup system", self.primary_color
+            "save", "Backup & Restore", self.primary_color
         )
         action_backup.clicked.connect(self.main_window.go_to_backup)
-        actions_grid.addWidget(action_backup, 1, 0)
+        actions_grid.addWidget(action_backup, 1, 1)
 
         action_chart = ModernActionTile(
-            "🚚", "Running Chart", "Track status", self.primary_color
+            "chart", "Running Chart", self.primary_color
         )
         action_chart.clicked.connect(self.main_window.go_to_running_chart)
-        actions_grid.addWidget(action_chart, 1, 1)
+        actions_grid.addWidget(action_chart, 2, 0)
 
         action_reports = ModernActionTile(
-            "📈", "Reports", "Export data", self.primary_color
+            "truck", "Reports", self.primary_color
         )
         action_reports.clicked.connect(self.main_window.go_to_report)
-        actions_grid.addWidget(action_reports, 1, 2)
+        actions_grid.addWidget(action_reports, 2, 1)
 
         content_layout.addLayout(actions_grid)
 
