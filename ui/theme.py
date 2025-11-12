@@ -106,12 +106,12 @@ class Styles:
             QPushButton {{
                 background-color: {color};
                 color: white;
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 600;
-                padding: 10px 20px;
-                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+                padding: 6px 12px;
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
                 border: none;
-                min-height: 40px;
+                min-height: 32px;
             }}
             QPushButton:hover {{
                 background-color: {ColorPalette.ACCENT_PRIMARY};
@@ -129,12 +129,12 @@ class Styles:
             QPushButton {{
                 background-color: #e5e7eb;
                 color: {ColorPalette.TEXT_PRIMARY};
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 600;
-                padding: 10px 20px;
-                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+                padding: 6px 12px;
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
                 border: none;
-                min-height: 40px;
+                min-height: 32px;
             }}
             QPushButton:hover {{
                 background-color: #d1d5db;
@@ -166,6 +166,25 @@ class Styles:
                 background-color: #bfdbfe;
             }}
         """
+
+    @staticmethod
+    def get_button_danger():
+        """Danger / delete button stylesheet"""
+        return f"""
+            QPushButton {{
+                background-color: {ColorPalette.ACCENT_RED};
+                color: white;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 6px 12px;
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                border: none;
+                min-height: 32px;
+            }}
+            QPushButton:hover {{
+                background-color: #b03030;
+            }}
+        """
     
     @staticmethod
     def get_page_title():
@@ -183,6 +202,20 @@ class Styles:
     def get_input_field():
         """Input field stylesheet"""
         return f"""
+            QPushButton#secondary {{
+                background-color: {ColorPalette.ACCENT_SECONDARY};
+                color: white;
+                min-height: 32px;
+                padding: 6px 12px;
+            }}
+
+            QPushButton#danger {{
+                background-color: {ColorPalette.ACCENT_RED};
+                color: white;
+                min-height: 32px;
+                padding: 6px 12px;
+            }}
+
             QLineEdit, QTextEdit, QComboBox {{
                 background-color: #fafafa;
                 border: 1px solid {ColorPalette.BORDER_LIGHT};
@@ -336,9 +369,11 @@ def get_global_stylesheet():
             background-color: {ColorPalette.ACCENT_PRIMARY};
             color: white;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
-            border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+            border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
             border: none;
-            min-height: 40px;
+            min-height: 32px;
+            padding: 6px 12px;
+            font-size: 13px;
         }}
         
         QPushButton:hover {{

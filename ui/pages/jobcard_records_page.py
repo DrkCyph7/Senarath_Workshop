@@ -35,72 +35,62 @@ class LabourWorksDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Labour Works Details")
         self.setMinimumSize(900, 600)
-        
+
+        # parse incoming data
         self.labour_works_data = []
         try:
             self.labour_works_data = json.loads(labour_works_json) if labour_works_json else []
-        except:
+        except Exception:
             self.labour_works_data = []
-        
+
+        # Styling
         self.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #2c2c2c;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            QTableWidget {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                gridline-color: #e0e0e0;
-            }
-            QHeaderView::section {
-                background-color: #2d7a5f;
-                color: white;
-                padding: 10px;
-                border: none;
-                font-weight: 700;
-            }
+            QDialog { background-color: #ffffff; }
+            QLabel { color: #2c2c2c; font-weight: 600; font-size: 13px; }
+            QTableWidget { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; gridline-color: #e0e0e0; }
+            QHeaderView::section { background-color: #2d7a5f; color: white; padding: 10px; border: none; font-weight: 700; }
         """)
-        
+
         layout = QVBoxLayout()
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
+        layout.setSpacing(12)
+        layout.setContentsMargins(16, 16, 16, 16)
+
         # Title
         title = QLabel("👷 Labour Works Summary")
         title.setFont(QFont("Segoe UI", 15, QFont.Bold))
-        title.setStyleSheet("color: #2d7a5f; padding-bottom: 10px;")
+        title.setStyleSheet("color: #2d7a5f; padding-bottom: 8px;")
         layout.addWidget(title)
-        
+
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["#", "Description", "Hours", "Labour Assigned", "Cost"])
+        self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
-        
-        # Summary
+
+        # Summary labels
         summary_layout = QHBoxLayout()
         summary_layout.addStretch()
-        
         self.total_hours_label = QLabel("Total Hours: 0.00")
-        self.total_hours_label.setStyleSheet("font-size: 13px; padding: 8px 15px; background-color: #f0f0f0; border-radius: 5px;")
+        self.total_hours_label.setStyleSheet("font-size: 13px; padding: 6px 10px; background-color: #f0f0f0; border-radius: 4px;")
         summary_layout.addWidget(self.total_hours_label)
-        
         self.total_labour_cost_label = QLabel("Total Labour Cost: Rs. 0.00")
-        self.total_labour_cost_label.setStyleSheet("font-size: 13px; font-weight: 700; padding: 8px 15px; background-color: #e8f4f0; border-radius: 5px; color: #2d7a5f;")
+        self.total_labour_cost_label.setStyleSheet("font-size: 13px; font-weight: 700; padding: 6px 10px; background-color: #e8f4f0; border-radius: 4px; color: #2d7a5f;")
         summary_layout.addWidget(self.total_labour_cost_label)
-        
         layout.addLayout(summary_layout)
-        
+
         # Close button
         button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.setFixedHeight(36)
+        for b in button_box.buttons():
+            try:
+                b.setFixedHeight(32)
+                b.setStyleSheet("padding:6px 12px; font-size:12px;")
+            except Exception:
+                pass
         button_box.accepted.connect(self.accept)
         layout.addWidget(button_box)
-        
+
         self.setLayout(layout)
         self.refresh_table()
     
@@ -219,41 +209,50 @@ class SparePartEditDialog(QDialog):
         total_layout.addWidget(self.grand_total_label)
         layout.addLayout(total_layout)
         
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(6)
-        
+        # Footer: actions + dialog buttons on same row (single-line footer)
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+
         add_btn = QPushButton("+ Add Part")
-        add_btn.setMaximumHeight(28)
-        add_btn.setMaximumWidth(100)
+        add_btn.setFixedHeight(32)
+        add_btn.setFixedWidth(140)
         add_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
         add_btn.clicked.connect(self.add_part)
-        
+
         edit_btn = QPushButton("Edit")
         edit_btn.setObjectName("secondary")
-        edit_btn.setMaximumHeight(28)
-        edit_btn.setMaximumWidth(70)
+        edit_btn.setFixedHeight(32)
+        edit_btn.setFixedWidth(140)
         edit_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
         edit_btn.clicked.connect(self.edit_part)
-        
-        delete_btn = QPushButton("Del")
+
+        delete_btn = QPushButton("Delete")
         delete_btn.setObjectName("danger")
-        delete_btn.setMaximumHeight(24)
-        delete_btn.setMaximumWidth(35)
-        delete_btn.setStyleSheet("font-size: 9px; padding: 2px 4px; margin: 0px;")
+        delete_btn.setFixedHeight(32)
+        delete_btn.setFixedWidth(140)
+        delete_btn.setStyleSheet("font-size: 12px; padding: 6px 10px;")
         delete_btn.clicked.connect(self.delete_part)
-        
-        btn_layout.addWidget(add_btn)
-        btn_layout.addWidget(edit_btn)
-        btn_layout.addWidget(delete_btn)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-        
-        # Dialog buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+
+        footer.addWidget(add_btn)
+        footer.addWidget(edit_btn)
+        footer.addWidget(delete_btn)
+        footer.addStretch()
+
+        # Dialog buttons (Cancel / OK) aligned to right - use explicit buttons for consistent sizing
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("secondary")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFixedWidth(90)
+        cancel_btn.clicked.connect(self.reject)
+        footer.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFixedWidth(90)
+        ok_btn.clicked.connect(self.accept)
+        footer.addWidget(ok_btn)
+
+        layout.addLayout(footer)
         
         self.setLayout(layout)
         self.refresh_table()
@@ -404,41 +403,50 @@ class LabourWorkEditDialog(QDialog):
         total_layout.addWidget(self.total_cost_label)
         layout.addLayout(total_layout)
         
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(6)
-        
+        # Footer: actions + dialog buttons on same row
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+
         add_btn = QPushButton("+ Add Work")
-        add_btn.setMaximumHeight(28)
-        add_btn.setMaximumWidth(100)
+        add_btn.setFixedHeight(32)
+        add_btn.setFixedWidth(140)
         add_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
         add_btn.clicked.connect(self.add_work)
-        
+
         edit_btn = QPushButton("Edit")
         edit_btn.setObjectName("secondary")
-        edit_btn.setMaximumHeight(28)
-        edit_btn.setMaximumWidth(70)
+        edit_btn.setFixedHeight(32)
+        edit_btn.setFixedWidth(140)
         edit_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
         edit_btn.clicked.connect(self.edit_work)
-        
-        delete_btn = QPushButton("Del")
+
+        delete_btn = QPushButton("Delete")
         delete_btn.setObjectName("danger")
-        delete_btn.setMaximumHeight(24)
-        delete_btn.setMaximumWidth(35)
-        delete_btn.setStyleSheet("font-size: 9px; padding: 2px 4px; margin: 0px;")
+        delete_btn.setFixedHeight(32)
+        delete_btn.setFixedWidth(140)
+        delete_btn.setStyleSheet("font-size: 12px; padding: 6px 10px;")
         delete_btn.clicked.connect(self.delete_work)
-        
-        btn_layout.addWidget(add_btn)
-        btn_layout.addWidget(edit_btn)
-        btn_layout.addWidget(delete_btn)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-        
-        # Dialog buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+
+        footer.addWidget(add_btn)
+        footer.addWidget(edit_btn)
+        footer.addWidget(delete_btn)
+        footer.addStretch()
+
+        # Dialog buttons (Ok / Cancel) - explicit buttons for uniform sizing
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("secondary")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFixedWidth(90)
+        cancel_btn.clicked.connect(self.reject)
+        footer.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFixedWidth(90)
+        ok_btn.clicked.connect(self.accept)
+        footer.addWidget(ok_btn)
+
+        layout.addLayout(footer)
         
         self.setLayout(layout)
         self.refresh_table()
@@ -542,128 +550,96 @@ class OutsourceWorkEditDialog(QDialog):
     def __init__(self, outsource_works_json, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Outsource Works")
-        self.setMinimumSize(1000, 600)
-        
+        self.setMinimumSize(900, 520)
+
+        # load data
         self.outsource_works_data = []
         try:
             self.outsource_works_data = json.loads(outsource_works_json) if outsource_works_json else []
-        except:
+        except Exception:
             self.outsource_works_data = []
-        
+
+        # styling
         self.setStyleSheet("""
-            QDialog {
-                background-color: #ffffff;
-            }
-            QLabel {
-                color: #2c2c2c;
-                font-weight: 600;
-                font-size: 13px;
-            }
-            QTableWidget {
-                background-color: #ffffff;
-                border: 1px solid #e0e0e0;
-                border-radius: 6px;
-                gridline-color: #e0e0e0;
-            }
-            QHeaderView::section {
-                background-color: #2d7a5f;
-                color: white;
-                padding: 10px;
-                border: none;
-                font-weight: 700;
-            }
-            QPushButton {
-                background-color: #2d7a5f;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                padding: 9px 18px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #246651;
-            }
-            QPushButton#secondary {
-                background-color: #8b6f47;
-            }
-            QPushButton#secondary:hover {
-                background-color: #735a38;
-            }
-            QPushButton#danger {
-                background-color: #c84343;
-            }
-            QPushButton#danger:hover {
-                background-color: #b03636;
-            }
+            QDialog { background-color: #ffffff; }
+            QLabel { color: #2c2c2c; font-weight: 600; font-size: 13px; }
+            QTableWidget { background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; gridline-color: #e0e0e0; }
+            QHeaderView::section { background-color: #2d7a5f; color: white; padding: 10px; border: none; font-weight: 700; }
+            QPushButton { background-color: #2d7a5f; color: white; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; }
+            QPushButton#secondary { background-color: #8b6f47; }
+            QPushButton#danger { background-color: #c84343; }
         """)
-        
+
         layout = QVBoxLayout()
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
         # Title
         title = QLabel("🔨 Outsource Works")
-        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
-        title.setStyleSheet("color: #2d7a5f; padding-bottom: 10px;")
+        title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        title.setStyleSheet("color: #2d7a5f; padding-bottom: 6px;")
         layout.addWidget(title)
-        
+
         # Table
         self.table = QTableWidget()
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["#", "Date", "Work Type", "Description", "Cost", "Remark"])
         layout.addWidget(self.table)
-        
+
         # Total
         total_layout = QHBoxLayout()
         total_layout.addStretch()
         self.total_cost_label = QLabel("Total Outsource Cost: Rs. 0.00")
-        self.total_cost_label.setStyleSheet("font-size: 14px; font-weight: 700; padding: 8px 15px; background-color: #e8f4f0; border-radius: 5px; color: #2d7a5f;")
+        self.total_cost_label.setStyleSheet("font-size: 13px; font-weight: 700; padding: 6px 10px; background-color: #e8f4f0; border-radius: 4px; color: #2d7a5f;")
         total_layout.addWidget(self.total_cost_label)
         layout.addLayout(total_layout)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(6)
-        
+
+        # Footer: actions + dialog buttons on same row
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+
         add_btn = QPushButton("+ Add Work")
-        add_btn.setMaximumHeight(28)
-        add_btn.setMaximumWidth(100)
-        add_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+        add_btn.setFixedHeight(32)
+        add_btn.setFixedWidth(140)
         add_btn.clicked.connect(self.add_work)
-        
+        footer.addWidget(add_btn)
+
         edit_btn = QPushButton("Edit")
         edit_btn.setObjectName("secondary")
-        edit_btn.setMaximumHeight(28)
-        edit_btn.setMaximumWidth(70)
-        edit_btn.setStyleSheet("font-size: 11px; padding: 4px 8px;")
+        edit_btn.setFixedHeight(32)
+        edit_btn.setFixedWidth(140)
         edit_btn.clicked.connect(self.edit_work)
-        
-        delete_btn = QPushButton("Del")
+        footer.addWidget(edit_btn)
+
+        delete_btn = QPushButton("Delete")
         delete_btn.setObjectName("danger")
-        delete_btn.setMaximumHeight(24)
-        delete_btn.setMaximumWidth(35)
-        delete_btn.setStyleSheet("font-size: 9px; padding: 2px 4px; margin: 0px;")
+        delete_btn.setFixedHeight(32)
+        delete_btn.setFixedWidth(140)
         delete_btn.clicked.connect(self.delete_work)
-        
-        btn_layout.addWidget(add_btn)
-        btn_layout.addWidget(edit_btn)
-        btn_layout.addWidget(delete_btn)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
-        
-        # Dialog buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
-        
+        footer.addWidget(delete_btn)
+
+        footer.addStretch()
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("secondary")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFixedWidth(90)
+        cancel_btn.clicked.connect(self.reject)
+        footer.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFixedWidth(90)
+        ok_btn.clicked.connect(self.accept)
+        footer.addWidget(ok_btn)
+
+        layout.addLayout(footer)
+
         self.setLayout(layout)
         self.refresh_table()
-    
+
     def refresh_table(self):
         self.table.setRowCount(len(self.outsource_works_data))
         total_cost = 0.0
-        
         for row_idx, work in enumerate(self.outsource_works_data):
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(row_idx + 1)))
             self.table.setItem(row_idx, 1, QTableWidgetItem(work.get('work_date', '')))
@@ -671,14 +647,12 @@ class OutsourceWorkEditDialog(QDialog):
             self.table.setItem(row_idx, 3, QTableWidgetItem(work.get('description', '')))
             self.table.setItem(row_idx, 4, QTableWidgetItem(f"Rs. {work.get('cost', '0')}"))
             self.table.setItem(row_idx, 5, QTableWidgetItem(work.get('remark', '')))
-            
             try:
                 total_cost += float(work.get('cost', 0))
             except ValueError:
                 pass
-        
         self.total_cost_label.setText(f"Total Outsource Cost: Rs. {total_cost:,.2f}")
-    
+
     def add_work(self):
         from ui.pages.job_card_page import OutsourceWorkDialog
         dialog = OutsourceWorkDialog(parent=self)
@@ -686,13 +660,12 @@ class OutsourceWorkEditDialog(QDialog):
             data = dialog.get_data()
             self.outsource_works_data.append(data)
             self.refresh_table()
-    
+
     def edit_work(self):
         current_row = self.table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select an outsource work to edit.")
             return
-        
         from ui.pages.job_card_page import OutsourceWorkDialog
         current_data = self.outsource_works_data[current_row]
         dialog = OutsourceWorkDialog(parent=self, edit_data=current_data)
@@ -700,20 +673,17 @@ class OutsourceWorkEditDialog(QDialog):
             data = dialog.get_data()
             self.outsource_works_data[current_row] = data
             self.refresh_table()
-    
+
     def delete_work(self):
         current_row = self.table.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select an outsource work to delete.")
             return
-        
-        confirm = QMessageBox.question(self, "Confirm Delete", 
-                                      "Are you sure you want to delete this outsource work?",
-                                      QMessageBox.Yes | QMessageBox.No)
+        confirm = QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this outsource work?", QMessageBox.Yes | QMessageBox.No)
         if confirm == QMessageBox.Yes:
             del self.outsource_works_data[current_row]
             self.refresh_table()
-    
+
     def get_data(self):
         return json.dumps(self.outsource_works_data)
 
@@ -722,7 +692,9 @@ class JobCardEditDialog(QDialog):
     def __init__(self, job_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Edit Job Card - {job_data.get('job_no', 'N/A')}")
-        self.setMinimumSize(800, 700)
+        # Use a more compact dialog size (smaller, cleaner layout)
+        self.setMinimumSize(920, 640)
+        self.resize(960, 680)
         self.job_id = job_data.get('id')
         
         # Load dropdown data
@@ -747,6 +719,7 @@ class JobCardEditDialog(QDialog):
         
         conn.close()
         
+        # Compact styling: smaller paddings, slightly smaller fonts and controls
         self.setStyleSheet("""
             QDialog {
                 background-color: #f5f5f5;
@@ -754,14 +727,15 @@ class JobCardEditDialog(QDialog):
             QLabel {
                 color: #2c2c2c;
                 font-weight: 600;
-                font-size: 13px;
+                font-size: 12px;
             }
             QLineEdit, QComboBox, QDateEdit, QTextEdit {
                 background-color: #fafafa;
                 border: 1px solid #e0e0e0;
-                border-radius: 5px;
-                padding: 8px 10px;
-                font-size: 13px;
+                border-radius: 4px;
+                padding: 4px 6px;
+                font-size: 12px;
+                min-height: 24px;
             }
             QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {
                 border: 2px solid #2d7a5f;
@@ -771,52 +745,53 @@ class JobCardEditDialog(QDialog):
                 background-color: #2d7a5f;
                 color: white;
                 border: none;
-                border-radius: 6px;
-                padding: 9px 18px;
+                border-radius: 4px;
+                padding: 6px 12px;
                 font-weight: 600;
+                font-size: 12px;
+                min-height: 28px;
             }
             QPushButton:hover {
                 background-color: #246651;
             }
             QPushButton#secondary {
                 background-color: #8b6f47;
+                padding: 5px 10px;
+                min-height: 26px;
+                font-size: 11px;
             }
             QPushButton#secondary:hover {
                 background-color: #735a38;
             }
         """)
-        
-        # Main layout with scroll
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
+        # Main container (no scroll) — layout compressed for a clean professional look
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
+        layout.setSpacing(6)
+        layout.setContentsMargins(6, 6, 6, 6)
+
         # Title
         title = QLabel(f"✏️ Edit Job Card: {job_data.get('job_no', 'N/A')}")
-        title.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        title.setStyleSheet("color: #2d7a5f; padding: 10px;")
+        title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        title.setStyleSheet("color: #2d7a5f; padding: 4px;")
         layout.addWidget(title)
-        
-        # Form grid
+
+        # Form grid (compact two-column layout)
         grid = QGridLayout()
-        grid.setHorizontalSpacing(15)
-        grid.setVerticalSpacing(12)
-        
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(6)
+
         # Job No (read-only)
         self.job_no_input = QLineEdit(job_data.get('job_no', ''))
         self.job_no_input.setReadOnly(True)
         self.job_no_input.setStyleSheet("background-color: #f0f0f0; font-weight: 600;")
-        
+
         # Driver
         self.driver_input = QComboBox()
         self.driver_input.setEditable(True)
         self.driver_input.addItems(self.drivers)
         self.driver_input.setCurrentText(job_data.get('driver', ''))
-        
+
         # Company No
         self.company_no_input = QComboBox()
         self.company_no_input.setEditable(True)
@@ -824,12 +799,12 @@ class JobCardEditDialog(QDialog):
         self.company_no_input.addItems(company_nos)
         self.company_no_input.setCurrentText(job_data.get('company_no', ''))
         self.company_no_input.currentTextChanged.connect(self.auto_fill_from_company)
-        
+
         # Site
         self.site_input = QComboBox()
         self.site_input.addItems(self.sites)
         self.site_input.setCurrentText(job_data.get('site', ''))
-        
+
         # Vehicle No
         self.vehicle_input = QComboBox()
         self.vehicle_input.setEditable(True)
@@ -837,12 +812,12 @@ class JobCardEditDialog(QDialog):
         self.vehicle_input.addItems(vehicle_nos)
         self.vehicle_input.setCurrentText(job_data.get('vehicle_no', ''))
         self.vehicle_input.currentTextChanged.connect(self.auto_fill_from_vehicle)
-        
+
         # Section
         self.section_input = QComboBox()
         self.section_input.addItems(self.sections)
         self.section_input.setCurrentText(job_data.get('section', ''))
-        
+
         # Make, Model, Type
         self.make_input = QLineEdit(job_data.get('make', ''))
         self.make_input.setReadOnly(True)
@@ -850,10 +825,10 @@ class JobCardEditDialog(QDialog):
         self.model_input.setReadOnly(True)
         self.type_input = QLineEdit(job_data.get('type', ''))
         self.type_input.setReadOnly(True)
-        
+
         # Hr/Km
         self.hr_km_input = QLineEdit(job_data.get('hr_km', ''))
-        
+
         # Dates
         self.start_date_input = QDateEdit()
         self.start_date_input.setCalendarPopup(True)
@@ -861,99 +836,121 @@ class JobCardEditDialog(QDialog):
         start_date_str = job_data.get('start_date', '')
         if start_date_str:
             self.start_date_input.setDate(QDate.fromString(start_date_str, "yyyy-MM-dd"))
-        
+
         self.end_date_input = QDateEdit()
         self.end_date_input.setCalendarPopup(True)
         self.end_date_input.setDisplayFormat("yyyy-MM-dd")
         end_date_str = job_data.get('end_date', '')
         if end_date_str:
             self.end_date_input.setDate(QDate.fromString(end_date_str, "yyyy-MM-dd"))
-        
+
         # Add to grid - New Order
         row = 0
         grid.addWidget(QLabel("Job No:"), row, 0)
         grid.addWidget(self.job_no_input, row, 1)
         grid.addWidget(QLabel("Driver Name:"), row, 2)
         grid.addWidget(self.driver_input, row, 3)
-        
+
         row += 1
         grid.addWidget(QLabel("Company No:"), row, 0)
         grid.addWidget(self.company_no_input, row, 1)
         grid.addWidget(QLabel("Site:"), row, 2)
         grid.addWidget(self.site_input, row, 3)
-        
+
         row += 1
         grid.addWidget(QLabel("Vehicle No:"), row, 0)
         grid.addWidget(self.vehicle_input, row, 1)
         grid.addWidget(QLabel("Section:"), row, 2)
         grid.addWidget(self.section_input, row, 3)
-        
+
         row += 1
         grid.addWidget(QLabel("Make:"), row, 0)
         grid.addWidget(self.make_input, row, 1)
         grid.addWidget(QLabel("Hr/Km Reading:"), row, 2)
         grid.addWidget(self.hr_km_input, row, 3)
-        
+
         row += 1
         grid.addWidget(QLabel("Model:"), row, 0)
         grid.addWidget(self.model_input, row, 1)
         grid.addWidget(QLabel("Start Date:"), row, 2)
         grid.addWidget(self.start_date_input, row, 3)
-        
+
         row += 1
         grid.addWidget(QLabel("Type:"), row, 0)
         grid.addWidget(self.type_input, row, 1)
         grid.addWidget(QLabel("End Date:"), row, 2)
         grid.addWidget(self.end_date_input, row, 3)
-        
+
         layout.addLayout(grid)
-        
+
         # Description
         desc_label = QLabel("📝 Job Description:")
-        desc_label.setStyleSheet("color: #2d7a5f; font-size: 14px; padding-top: 10px;")
+        desc_label.setStyleSheet("color: #2d7a5f; font-size: 14px; padding-top: 8px;")
         layout.addWidget(desc_label)
         self.description_input = QTextEdit()
         self.description_input.setPlainText(job_data.get('description', ''))
-        self.description_input.setMaximumHeight(120)
+        # Keep description compact so the dialog fits on screen without scrolling
+        self.description_input.setMaximumHeight(90)
         layout.addWidget(self.description_input)
-        
+
         # Store work data
         self.spare_parts_data = job_data.get('spare_parts', '[]')
         self.labour_works_data = job_data.get('labour_works', '[]')
         self.outsource_works_data = job_data.get('outsource_works', '[]')
-        
-        # Work buttons
-        work_btn_layout = QHBoxLayout()
-        edit_spare_btn = QPushButton("🔧 Edit Spare Parts")
-        edit_spare_btn.setObjectName("secondary")
-        edit_spare_btn.clicked.connect(self.edit_spare_parts)
-        work_btn_layout.addWidget(edit_spare_btn)
-        
-        edit_labour_btn = QPushButton("👷 Edit Labour Works")
-        edit_labour_btn.setObjectName("secondary")
-        edit_labour_btn.clicked.connect(self.edit_labour_works)
-        work_btn_layout.addWidget(edit_labour_btn)
-        
-        edit_outsource_btn = QPushButton("🔨 Edit Outsource Works")
-        edit_outsource_btn.setObjectName("secondary")
-        edit_outsource_btn.clicked.connect(self.edit_outsource_works)
-        work_btn_layout.addWidget(edit_outsource_btn)
-        
-        work_btn_layout.addStretch()
-        layout.addLayout(work_btn_layout)
-        
-        scroll.setWidget(container)
-        
-        # Main dialog layout
+
+        # Main dialog layout — add container directly (no scroll)
         main_layout = QVBoxLayout()
-        main_layout.addWidget(scroll)
-        
-        # Dialog buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.save_changes)
-        button_box.rejected.connect(self.reject)
-        main_layout.addWidget(button_box)
-        
+        main_layout.setSpacing(4)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.addWidget(container)
+
+        # Footer: move the three edit buttons to the bottom and keep them with Save/Cancel
+        footer_layout = QHBoxLayout()
+        footer_layout.setSpacing(8)
+
+        # Small secondary edit buttons (left side)
+        self.edit_spare_btn = QPushButton("🔧 Edit Spare Parts")
+        self.edit_spare_btn.setObjectName("secondary")
+        self.edit_spare_btn.setFixedHeight(32)
+        self.edit_spare_btn.setFixedWidth(140)
+        self.edit_spare_btn.clicked.connect(self.edit_spare_parts)
+        footer_layout.addWidget(self.edit_spare_btn)
+
+        self.edit_labour_btn = QPushButton("👷 Edit Labour Works")
+        self.edit_labour_btn.setObjectName("secondary")
+        self.edit_labour_btn.setFixedHeight(32)
+        self.edit_labour_btn.setFixedWidth(140)
+        self.edit_labour_btn.clicked.connect(self.edit_labour_works)
+        footer_layout.addWidget(self.edit_labour_btn)
+
+        self.edit_outsource_btn = QPushButton("🔨 Edit Outsource Works")
+        self.edit_outsource_btn.setObjectName("secondary")
+        self.edit_outsource_btn.setFixedHeight(32)
+        self.edit_outsource_btn.setFixedWidth(140)
+        self.edit_outsource_btn.clicked.connect(self.edit_outsource_works)
+        footer_layout.addWidget(self.edit_outsource_btn)
+
+        footer_layout.addStretch()
+
+        # Dialog buttons (Save/Cancel) on the right side of the footer - explicit buttons for consistency
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("secondary")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFixedWidth(100)
+        cancel_btn.clicked.connect(self.reject)
+        footer_layout.addWidget(cancel_btn)
+
+        save_btn = QPushButton("Save")
+        save_btn.setFixedHeight(32)
+        save_btn.setFixedWidth(100)
+        save_btn.setDefault(True)
+        save_btn.setAutoDefault(True)
+        save_btn.setCursor(Qt.PointingHandCursor)
+        save_btn.clicked.connect(self.save_changes)
+        footer_layout.addWidget(save_btn)
+
+        main_layout.addLayout(footer_layout)
+
         self.setLayout(main_layout)
     
     def auto_fill_from_company(self, company_no):
@@ -1407,11 +1404,13 @@ class JobCardDetailDialog(QDialog):
         if HAS_REPORTLAB:
             export_btn = QPushButton("Export PDF")
             export_btn.clicked.connect(lambda: self.export_to_pdf(job_data, spare_total, labour_total, outsource_total, grand_total))
+            export_btn.setFixedHeight(32)
             button_layout.addWidget(export_btn)
         
         button_layout.addStretch()
         close_btn = QPushButton("Close")
         close_btn.setFixedWidth(100)
+        close_btn.setFixedHeight(32)
         close_btn.clicked.connect(self.accept)
         button_layout.addWidget(close_btn)
         
@@ -1449,40 +1448,68 @@ class JobCardDetailDialog(QDialog):
             story = []
             styles = getSampleStyleSheet()
             
-            # Create header table with logo
+            # We'll draw a consistent header and footer on every page using canvas callbacks.
+            # Logo original dimensions: 495 x 150 (keep same ratio). We'll scale it to fit
+            # inside the header area while preserving ratio.
             logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets', 'logo.png')
-            header_data = []
-            
-            if os.path.exists(logo_path):
-                from reportlab.platypus import Image
-                try:
-                    logo_img = Image(logo_path, width=0.5*inch, height=0.5*inch)
-                    header_data = [
-                        [logo_img, 'SENARATH WMS', f"{datetime.datetime.now().strftime('%d %B %Y')}"]
-                    ]
-                except:
-                    header_data = [
-                        ['SENARATH WMS', '', f"{datetime.datetime.now().strftime('%d %B %Y')}"]
-                    ]
-            else:
-                header_data = [
-                    ['SENARATH WMS', '', f"{datetime.datetime.now().strftime('%d %B %Y')}"]
-                ]
-            
-            header_table = Table(header_data, colWidths=[0.8*inch, 3.2*inch, 1.4*inch])
-            header_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('ALIGN', (1, 0), (1, 0), 'CENTER'),
-                ('ALIGN', (2, 0), (2, 0), 'RIGHT'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (1, 0), (1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (1, 0), (1, 0), 12),
-                ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor('#2d7a5f')),
-                ('FONTSIZE', (2, 0), (2, 0), 8),
-                ('TEXTCOLOR', (2, 0), (2, 0), colors.HexColor('#666666')),
-            ]))
-            story.append(header_table)
-            story.append(Spacer(1, 0.08*inch))
+
+            def _draw_header_footer(canvas_obj, doc_obj):
+                # Header
+                page_width, page_height = doc_obj.pagesize
+                content_width = doc_obj.width
+
+                # Compute logo size preserving original aspect ratio (495 x 150)
+                orig_w, orig_h = 495.0, 150.0
+                # Maximum space allocated for logo in header
+                max_logo_w = content_width * 0.28
+                max_logo_h = 0.6 * inch
+                scale = min(max_logo_w / orig_w, max_logo_h / orig_h)
+                logo_w = orig_w * scale
+                logo_h = orig_h * scale
+
+                # Coordinates: origin is bottom-left. Place logo near left within margins.
+                logo_x = doc_obj.leftMargin
+                logo_y = page_height - doc_obj.topMargin + (doc_obj.topMargin - logo_h) / 2.0
+
+                # Draw logo if exists
+                if os.path.exists(logo_path):
+                    try:
+                        canvas_obj.drawImage(logo_path, logo_x, logo_y, width=logo_w, height=logo_h, preserveAspectRatio=True, mask='auto')
+                    except Exception:
+                        pass
+
+                # Header text (centered)
+                header_title = 'SENARATH WMS'
+                canvas_obj.setFont('Helvetica-Bold', 14)
+                canvas_obj.setFillColor(colors.HexColor('#2d7a5f'))
+                canvas_obj.drawCentredString(page_width / 2.0, page_height - (doc_obj.topMargin / 2.0) + 6, header_title)
+
+                # Small right aligned date
+                canvas_obj.setFont('Helvetica', 8)
+                canvas_obj.setFillColor(colors.HexColor('#666666'))
+                date_str = datetime.datetime.now().strftime('%d %B %Y')
+                canvas_obj.drawRightString(page_width - doc_obj.rightMargin, page_height - (doc_obj.topMargin / 2.0) + 6, date_str)
+
+                # Divider line below header
+                canvas_obj.setStrokeColor(colors.HexColor('#dcdcdc'))
+                canvas_obj.setLineWidth(0.5)
+                y_line = page_height - doc_obj.topMargin + (doc_obj.topMargin * 0.1)
+                canvas_obj.line(doc_obj.leftMargin, y_line, page_width - doc_obj.rightMargin, y_line)
+
+                # Footer
+                footer_y = doc_obj.bottomMargin / 2.0
+                canvas_obj.setFont('Helvetica', 8)
+                canvas_obj.setFillColor(colors.HexColor('#666666'))
+                footer_text = 'Senarath WMS • Developed by DrkCyph7 • NexCy Technologies'
+                canvas_obj.drawCentredString(page_width / 2.0, footer_y + 6, footer_text)
+                timestamp = f"v1.0 • Generated on {datetime.datetime.now().strftime('%d %B %Y at %H:%M:%S')}"
+                canvas_obj.setFont('Helvetica', 7)
+                canvas_obj.drawCentredString(page_width / 2.0, footer_y - 4, timestamp)
+
+                # Divider line above footer
+                canvas_obj.setStrokeColor(colors.HexColor('#eeeeee'))
+                canvas_obj.setLineWidth(0.4)
+                canvas_obj.line(doc_obj.leftMargin, footer_y + 18, page_width - doc_obj.rightMargin, footer_y + 18)
             
             # Separator line
             sep_style = ParagraphStyle(
@@ -1514,7 +1541,11 @@ class JobCardDetailDialog(QDialog):
                 ['Start:', job_data.get('start_date', 'N/A'), 'End:', job_data.get('end_date', 'N/A')],
             ]
             
-            info_table = Table(info_data, colWidths=[1.5*inch, 2.0*inch, 1.5*inch, 2.0*inch])
+            # Make info table occupy full content width by distributing column widths proportionally.
+            info_units = [1.5, 2.0, 1.5, 2.0]
+            info_sum = sum(info_units)
+            info_col_widths = [doc.width * (u / info_sum) for u in info_units]
+            info_table = Table(info_data, colWidths=info_col_widths)
             info_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f9f9f9')),
                 ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#333333')),
@@ -1569,7 +1600,11 @@ class JobCardDetailDialog(QDialog):
                             f"Rs. {float(part.get('total', 0)):,.2f}"
                         ])
                     
-                    spare_table = Table(spare_data, colWidths=[0.35*inch, 2.0*inch, 0.5*inch, 0.5*inch, 0.9*inch, 0.9*inch])
+                    # Make spare parts table full width by assigning proportional column widths
+                    spare_units = [0.35, 2.0, 0.5, 0.5, 0.9, 0.9]
+                    spare_sum = sum(spare_units)
+                    spare_col_widths = [doc.width * (u / spare_sum) for u in spare_units]
+                    spare_table = Table(spare_data, colWidths=spare_col_widths)
                     spare_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d7a5f')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1614,7 +1649,11 @@ class JobCardDetailDialog(QDialog):
                             f"Rs. {float(work.get('work_cost', 0)):,.2f}"
                         ])
                     
-                    labour_table = Table(labour_data, colWidths=[0.35*inch, 0.7*inch, 1.4*inch, 0.65*inch, 1.5*inch, 0.85*inch])
+                    # Labour table full width
+                    labour_units = [0.35, 0.7, 1.4, 0.65, 1.5, 0.85]
+                    labour_sum = sum(labour_units)
+                    labour_col_widths = [doc.width * (u / labour_sum) for u in labour_units]
+                    labour_table = Table(labour_data, colWidths=labour_col_widths)
                     labour_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d7a5f')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1649,7 +1688,11 @@ class JobCardDetailDialog(QDialog):
                             f"Rs. {float(work.get('cost', 0)):,.2f}"
                         ])
                     
-                    outsource_table = Table(outsource_data, colWidths=[0.35*inch, 0.7*inch, 1.0*inch, 2.0*inch, 0.85*inch])
+                    # Outsource table full width
+                    outsource_units = [0.35, 0.7, 1.0, 2.0, 0.85]
+                    outsource_sum = sum(outsource_units)
+                    outsource_col_widths = [doc.width * (u / outsource_sum) for u in outsource_units]
+                    outsource_table = Table(outsource_data, colWidths=outsource_col_widths)
                     outsource_table.setStyle(TableStyle([
                         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d7a5f')),
                         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1677,7 +1720,11 @@ class JobCardDetailDialog(QDialog):
                 ['GRAND TOTAL:', f"Rs. {grand_total:,.2f}"],
             ]
             
-            summary_table = Table(summary_data, colWidths=[3.0*inch, 2.5*inch])
+            # Summary table full width
+            summary_units = [3.0, 2.5]
+            summary_sum = sum(summary_units)
+            summary_col_widths = [doc.width * (u / summary_sum) for u in summary_units]
+            summary_table = Table(summary_data, colWidths=summary_col_widths)
             summary_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 2), colors.HexColor('#f9f9f9')),
                 ('BACKGROUND', (0, 3), (-1, 3), colors.HexColor('#2d7a5f')),
@@ -1693,23 +1740,10 @@ class JobCardDetailDialog(QDialog):
             ]))
             story.append(summary_table)
             
-            # Add footer section
-            story.append(Spacer(1, 0.2*inch))
+            # Footer is drawn on every page by the canvas callback; no inline footer paragraphs needed.
             
-            footer_style = ParagraphStyle(
-                'FooterStyle',
-                parent=styles['Normal'],
-                fontSize=7,
-                textColor=colors.HexColor('#666666'),
-                alignment=TA_CENTER,
-                spaceAfter=2
-            )
-            
-            story.append(Paragraph("Senarath WMS • Developed by DrkCyph7 • NexCy Technologies", footer_style))
-            story.append(Paragraph(f"v1.0 • Generated on {datetime.datetime.now().strftime('%d %B %Y at %H:%M:%S')}", footer_style))
-            
-            # Build PDF
-            doc.build(story)
+            # Build PDF with header/footer on each page
+            doc.build(story, onFirstPage=_draw_header_footer, onLaterPages=_draw_header_footer)
             QMessageBox.information(self, "PDF Exported", f"Job card saved successfully!\n{file_path}")
         except Exception as e:
             QMessageBox.critical(self, "PDF Export Error", f"Failed to export PDF:\n{str(e)}")
@@ -1907,6 +1941,7 @@ class JobCardRecordsPage(QWidget):
                 selection-color: white;
                 padding: 4px;
                 border: 1px solid #bbb;
+                min-width: 220px;
             }
         """
         
@@ -1923,22 +1958,39 @@ class JobCardRecordsPage(QWidget):
         self.site_filter = QComboBox()
         self.site_filter.addItem("All Sites")
         self.site_filter.setMaximumHeight(28)
-        self.site_filter.setMaximumWidth(110)
+        # allow more visible width, popup will be wider for long names
+        self.site_filter.setMaximumWidth(220)
+        self.site_filter.setMinimumWidth(140)
         self.site_filter.setStyleSheet(dropdown_style)
+        # ensure popup/menu is wide enough to show long entries
+        try:
+            self.site_filter.view().setMinimumWidth(300)
+        except Exception:
+            pass
         filter_row1.addWidget(self.site_filter)
         
         self.section_filter = QComboBox()
         self.section_filter.addItem("All Sections")
         self.section_filter.setMaximumHeight(28)
-        self.section_filter.setMaximumWidth(120)
+        self.section_filter.setMaximumWidth(260)
+        self.section_filter.setMinimumWidth(140)
         self.section_filter.setStyleSheet(dropdown_style)
+        try:
+            self.section_filter.view().setMinimumWidth(340)
+        except Exception:
+            pass
         filter_row1.addWidget(self.section_filter)
         
         self.type_filter = QComboBox()
         self.type_filter.addItem("All Types")
         self.type_filter.setMaximumHeight(28)
-        self.type_filter.setMaximumWidth(100)
+        self.type_filter.setMaximumWidth(220)
+        self.type_filter.setMinimumWidth(140)
         self.type_filter.setStyleSheet(dropdown_style)
+        try:
+            self.type_filter.view().setMinimumWidth(300)
+        except Exception:
+            pass
         filter_row1.addWidget(self.type_filter)
         
         filter_layout.addLayout(filter_row1)
@@ -1953,7 +2005,7 @@ class JobCardRecordsPage(QWidget):
             "Last Month", "Last 3 Months", "Last 6 Months", "This Year"
         ])
         self.date_filter_type.setMaximumHeight(28)
-        self.date_filter_type.setMaximumWidth(110)
+        self.date_filter_type.setMaximumWidth(160)
         self.date_filter_type.setStyleSheet(dropdown_style)
         self.date_filter_type.currentTextChanged.connect(self.on_date_filter_changed)
         filter_row2.addWidget(self.date_filter_type)
@@ -1979,7 +2031,11 @@ class JobCardRecordsPage(QWidget):
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All Status", "Completed", "In Progress", "Pending"])
         self.status_filter.setMaximumHeight(28)
-        self.status_filter.setMaximumWidth(110)
+        self.status_filter.setMaximumWidth(160)
+        try:
+            self.status_filter.view().setMinimumWidth(240)
+        except Exception:
+            pass
         self.status_filter.setStyleSheet(dropdown_style)
         filter_row2.addWidget(self.status_filter)
         
@@ -2009,26 +2065,26 @@ class JobCardRecordsPage(QWidget):
         
         # Action buttons (on same row)
         btn_apply = QPushButton("Apply")
-        btn_apply.setMaximumHeight(28)
+        btn_apply.setFixedHeight(32)
         btn_apply.setMaximumWidth(65)
         btn_apply.setStyleSheet("background-color: #2d7a5f; color: white; font-weight: 600; font-size: 11px; padding: 4px;")
         btn_apply.clicked.connect(self.apply_filters)
         filter_row2.addWidget(btn_apply)
-        
+
         btn_clear = QPushButton("Clear")
-        btn_clear.setMaximumHeight(28)
+        btn_clear.setFixedHeight(32)
         btn_clear.setMaximumWidth(65)
         btn_clear.setStyleSheet("background-color: #8b6f47; color: white; font-weight: 600; font-size: 11px; padding: 4px;")
         btn_clear.clicked.connect(self.clear_filters)
         filter_row2.addWidget(btn_clear)
-        
+
         btn_export = QPushButton("Export")
-        btn_export.setMaximumHeight(28)
+        btn_export.setFixedHeight(32)
         btn_export.setMaximumWidth(70)
         btn_export.setStyleSheet("background-color: #8b6f47; color: white; font-weight: 600; font-size: 11px; padding: 4px;")
         btn_export.clicked.connect(self.export_data)
         filter_row2.addWidget(btn_export)
-        
+
         filter_row2.addStretch()
         filter_layout.addLayout(filter_row2)
         layout.addWidget(filter_card)
@@ -2041,45 +2097,45 @@ class JobCardRecordsPage(QWidget):
         # Navigation buttons
         btn_new_job = QPushButton("New Job")
         btn_new_job.setObjectName("nav")
-        btn_new_job.setMaximumHeight(28)
+        btn_new_job.setFixedHeight(32)
         btn_new_job.setMaximumWidth(90)
         btn_new_job.setCursor(Qt.PointingHandCursor)
         btn_new_job.clicked.connect(self.go_to_job_card)
-        
+
         btn_data_manager = QPushButton("Manager")
         btn_data_manager.setObjectName("nav")
-        btn_data_manager.setMaximumHeight(28)
+        btn_data_manager.setFixedHeight(32)
         btn_data_manager.setMaximumWidth(80)
         btn_data_manager.setCursor(Qt.PointingHandCursor)
         btn_data_manager.clicked.connect(self.go_to_data_manager)
-        
+
         action_bar.addWidget(btn_new_job)
         action_bar.addWidget(btn_data_manager)
         action_bar.addSpacing(8)
-        
+
         # Record actions
         btn_view = QPushButton("View")
-        btn_view.setMaximumHeight(28)
+        btn_view.setFixedHeight(32)
         btn_view.setMaximumWidth(60)
         btn_view.setCursor(Qt.PointingHandCursor)
         btn_view.clicked.connect(self.view_details)
-        
+
         btn_edit = QPushButton("Edit")
         btn_edit.setObjectName("secondary")
-        btn_edit.setMaximumHeight(28)
+        btn_edit.setFixedHeight(32)
         btn_edit.setMaximumWidth(60)
         btn_edit.setCursor(Qt.PointingHandCursor)
         btn_edit.clicked.connect(self.edit_record)
-        
+
         btn_delete = QPushButton("Delete")
         btn_delete.setObjectName("danger")
-        btn_delete.setMaximumHeight(28)
+        btn_delete.setFixedHeight(32)
         btn_delete.setMaximumWidth(70)
         btn_delete.setCursor(Qt.PointingHandCursor)
         btn_delete.clicked.connect(self.delete_selected)
-        
+
         btn_refresh = QPushButton("Refresh")
-        btn_refresh.setMaximumHeight(28)
+        btn_refresh.setFixedHeight(32)
         btn_refresh.setMaximumWidth(75)
         btn_refresh.setCursor(Qt.PointingHandCursor)
         btn_refresh.clicked.connect(self.load_records)
@@ -2354,15 +2410,20 @@ class JobCardRecordsPage(QWidget):
                 
                 csv_content += f'"{job_no}","{company_no}","{vehicle_no}","{driver}","{make}","{model}","{type_val}","{site}","{section}","{start_date}",{spare_cost:.2f},{labour_cost:.2f},{outsource_cost:.2f},{grand_total:.2f}\n'
             
-            # Save to file
+            # Ask user where to save the CSV
             from datetime import datetime
-            filename = f"job_cards_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            filepath = f"/Users/darkcyph7/Documents/GitHub/Senarath_Workshop/{filename}"
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
+            default_name = f"job_cards_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            file_path, _ = QFileDialog.getSaveFileName(self, "Save CSV", default_name, "CSV Files (*.csv)")
+            if not file_path:
+                return
+            # Ensure .csv extension
+            if not file_path.lower().endswith('.csv'):
+                file_path += '.csv'
+
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(csv_content)
-            
-            QMessageBox.information(self, "Export Successful ✅", f"Data exported to:\n{filename}")
+
+            QMessageBox.information(self, "Export Successful ✅", f"Data exported to:\n{file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Export Error", f"Failed to export data:\n{str(e)}")
 
