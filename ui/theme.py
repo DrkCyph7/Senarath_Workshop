@@ -124,12 +124,12 @@ class Styles:
     
     @staticmethod
     def get_button_secondary():
-        """Secondary button stylesheet"""
+        """Secondary button stylesheet - for alternate/edit actions"""
         return f"""
             QPushButton {{
-                background-color: #e5e7eb;
-                color: {ColorPalette.TEXT_PRIMARY};
-                font-size: 13px;
+                background-color: {ColorPalette.ACCENT_SECONDARY};
+                color: white;
+                font-size: 12px;
                 font-weight: 600;
                 padding: 6px 12px;
                 border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
@@ -137,10 +137,10 @@ class Styles:
                 min-height: 32px;
             }}
             QPushButton:hover {{
-                background-color: #d1d5db;
+                background-color: #956543;
             }}
             QPushButton:pressed {{
-                background-color: #d1d5db;
+                background-color: #7d5339;
             }}
         """
     
