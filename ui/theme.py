@@ -106,12 +106,12 @@ class Styles:
             QPushButton {{
                 background-color: {color};
                 color: white;
-                font-size: 13px;
+                font-size: 14px;
                 font-weight: 600;
-                padding: 6px 12px;
-                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                padding: 10px 20px;
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
                 border: none;
-                min-height: 32px;
+                min-height: 40px;
             }}
             QPushButton:hover {{
                 background-color: {ColorPalette.ACCENT_PRIMARY};
@@ -124,23 +124,23 @@ class Styles:
     
     @staticmethod
     def get_button_secondary():
-        """Secondary button stylesheet - for alternate/edit actions"""
+        """Secondary button stylesheet"""
         return f"""
             QPushButton {{
-                background-color: {ColorPalette.ACCENT_SECONDARY};
-                color: white;
-                font-size: 12px;
+                background-color: #e5e7eb;
+                color: {ColorPalette.TEXT_PRIMARY};
+                font-size: 14px;
                 font-weight: 600;
-                padding: 6px 12px;
-                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                padding: 10px 20px;
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
                 border: none;
-                min-height: 32px;
+                min-height: 40px;
             }}
             QPushButton:hover {{
-                background-color: #956543;
+                background-color: #d1d5db;
             }}
             QPushButton:pressed {{
-                background-color: #7d5339;
+                background-color: #d1d5db;
             }}
         """
     
@@ -166,25 +166,6 @@ class Styles:
                 background-color: #bfdbfe;
             }}
         """
-
-    @staticmethod
-    def get_button_danger():
-        """Danger / delete button stylesheet"""
-        return f"""
-            QPushButton {{
-                background-color: {ColorPalette.ACCENT_RED};
-                color: white;
-                font-size: 13px;
-                font-weight: 600;
-                padding: 6px 12px;
-                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
-                border: none;
-                min-height: 32px;
-            }}
-            QPushButton:hover {{
-                background-color: #b03030;
-            }}
-        """
     
     @staticmethod
     def get_page_title():
@@ -202,20 +183,6 @@ class Styles:
     def get_input_field():
         """Input field stylesheet"""
         return f"""
-            QPushButton#secondary {{
-                background-color: {ColorPalette.ACCENT_SECONDARY};
-                color: white;
-                min-height: 32px;
-                padding: 6px 12px;
-            }}
-
-            QPushButton#danger {{
-                background-color: {ColorPalette.ACCENT_RED};
-                color: white;
-                min-height: 32px;
-                padding: 6px 12px;
-            }}
-
             QLineEdit, QTextEdit, QComboBox {{
                 background-color: #fafafa;
                 border: 1px solid {ColorPalette.BORDER_LIGHT};
@@ -369,11 +336,9 @@ def get_global_stylesheet():
             background-color: {ColorPalette.ACCENT_PRIMARY};
             color: white;
             font-weight: {Typography.WEIGHT_SEMIBOLD};
-            border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+            border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
             border: none;
-            min-height: 32px;
-            padding: 6px 12px;
-            font-size: 13px;
+            min-height: 40px;
         }}
         
         QPushButton:hover {{

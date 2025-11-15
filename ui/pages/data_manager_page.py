@@ -187,142 +187,6 @@ class LabourRateDialog(QDialog):
         return {grade: spin.value() for grade, spin in self.rate_inputs.items()}
 
 
-class DriverDialog(QDialog):
-    def __init__(self, parent=None, edit_data=None, sites=None):
-        super().__init__(parent)
-        self.setWindowTitle("Add/Edit Driver")
-        self.setMinimumWidth(600)
-
-        layout = QVBoxLayout()
-        form = QGridLayout()
-
-        self.first_name = QLineEdit()
-        self.first_name.setPlaceholderText("First name")
-        self.middle_name = QLineEdit()
-        self.middle_name.setPlaceholderText("Middle name (optional)")
-        self.last_name = QLineEdit()
-        self.last_name.setPlaceholderText("Last name")
-
-        self.nic_input = QLineEdit()
-        self.nic_input.setPlaceholderText("NIC Number")
-
-        self.license_input = QLineEdit()
-        self.license_input.setPlaceholderText("Driving license number")
-
-        self.address_input = QLineEdit()
-        self.address_input.setPlaceholderText("Address")
-
-        self.contact_input = QLineEdit()
-        self.contact_input.setPlaceholderText("Contact number")
-
-        self.site_input = QComboBox()
-        if sites:
-            self.site_input.addItems(sites)
-
-        form.addWidget(QLabel("First Name:"), 0, 0)
-        form.addWidget(self.first_name, 0, 1)
-        form.addWidget(QLabel("Middle Name:"), 0, 2)
-        form.addWidget(self.middle_name, 0, 3)
-
-        form.addWidget(QLabel("Last Name:"), 1, 0)
-        form.addWidget(self.last_name, 1, 1)
-        form.addWidget(QLabel("NIC No:"), 1, 2)
-        form.addWidget(self.nic_input, 1, 3)
-
-        form.addWidget(QLabel("Driving License:"), 2, 0)
-        form.addWidget(self.license_input, 2, 1)
-        form.addWidget(QLabel("Contact:"), 2, 2)
-        form.addWidget(self.contact_input, 2, 3)
-
-        form.addWidget(QLabel("Address:"), 3, 0)
-        form.addWidget(self.address_input, 3, 1, 1, 3)
-
-        form.addWidget(QLabel("Site:"), 4, 0)
-        form.addWidget(self.site_input, 4, 1)
-
-        layout.addLayout(form)
-
-        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        layout.addWidget(btn_box)
-
-        self.setLayout(layout)
-
-        if edit_data:
-            # populate if editing
-            self.first_name.setText(edit_data.get('first_name', ''))
-            self.middle_name.setText(edit_data.get('middle_name', ''))
-            self.last_name.setText(edit_data.get('last_name', ''))
-            self.nic_input.setText(edit_data.get('nic', ''))
-            self.license_input.setText(edit_data.get('license_no', ''))
-            self.address_input.setText(edit_data.get('address', ''))
-            self.contact_input.setText(edit_data.get('contact', ''))
-            idx = self.site_input.findText(edit_data.get('site', ''))
-            if idx >= 0:
-                self.site_input.setCurrentIndex(idx)
-
-    def get_data(self):
-        return {
-            'first_name': self.first_name.text().strip(),
-            'middle_name': self.middle_name.text().strip(),
-            'last_name': self.last_name.text().strip(),
-            'nic': self.nic_input.text().strip(),
-            'license_no': self.license_input.text().strip(),
-            'address': self.address_input.text().strip(),
-            'contact': self.contact_input.text().strip(),
-            'site': self.site_input.currentText()
-        }
-
-
-def ensure_driver_columns(conn):
-    """Ensure drivers table has necessary columns; add them if missing."""
-    c = conn.cursor()
-    c.execute("PRAGMA table_info(drivers)")
-    existing = [row[1] for row in c.fetchall()]
-    to_add = []
-    cols = {
-        'first_name': 'TEXT', 'middle_name': 'TEXT', 'last_name': 'TEXT',
-        'nic': 'TEXT', 'license_no': 'TEXT', 'address': 'TEXT', 'contact': 'TEXT',
-        'site': 'TEXT', 'driver_uid': 'TEXT'
-    }
-    for col, typ in cols.items():
-        if col not in existing:
-            to_add.append((col, typ))
-    for col, typ in to_add:
-        try:
-            c.execute(f"ALTER TABLE drivers ADD COLUMN {col} {typ}")
-        except Exception:
-            pass
-    conn.commit()
-
-
-def generate_driver_uid(conn, first_name, site):
-    """Generate an 8-char unique driver uid: 2 chars from firstname + 2 from site + 4 digit sequence."""
-    prefix = (first_name[:2] if first_name else 'XX').upper()
-    site_part = (site[:2] if site else 'XX').upper()
-    prefix = (prefix + site_part)[:4]
-    c = conn.cursor()
-    try:
-        c.execute("SELECT driver_uid FROM drivers WHERE driver_uid LIKE ?", (prefix + '%',))
-        rows = [r[0] for r in c.fetchall() if r[0]]
-    except Exception:
-        rows = []
-    max_seq = 0
-    for r in rows:
-        suf = ''.join([ch for ch in r if ch.isdigit()])
-        if len(suf) >= 1:
-            try:
-                val = int(suf)
-                if val > max_seq:
-                    max_seq = val
-            except Exception:
-                pass
-    next_seq = max_seq + 1
-    seq_str = str(next_seq).zfill(4)
-    return f"{prefix}{seq_str}"
-
-
 class DataManagerPage(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -624,20 +488,9 @@ class DataManagerPage(QWidget):
             data = c.fetchall()
             headers = ["ID", "Company No", "Vehicle No", "Make", "Model", "Type"]
         elif self.current_table == "drivers":
-            ensure_driver_columns(conn)
-            c.execute(
-                """
-                SELECT id, name, driver_uid, first_name, middle_name, last_name,
-                       nic, license_no, contact, site, address
-                FROM drivers
-                ORDER BY name
-                """
-            )
+            c.execute("SELECT id, name FROM drivers ORDER BY name")
             data = c.fetchall()
-            headers = [
-                "ID", "Name", "Driver ID", "First Name", "Middle Name", "Last Name",
-                "NIC", "License", "Contact", "Site", "Address"
-            ]
+            headers = ["ID", "Name"]
         elif self.current_table == "sites":
             c.execute("SELECT id, name FROM sites ORDER BY name")
             data = c.fetchall()
@@ -729,7 +582,7 @@ class DataManagerPage(QWidget):
                 self.refresh_all()
         else:
             text = self.simple_input.text().strip()
-            if not text and self.current_table not in ("drivers",):
+            if not text:
                 QMessageBox.warning(self, "Warning", "Input field cannot be empty!")
                 return
 
@@ -737,43 +590,7 @@ class DataManagerPage(QWidget):
             c = conn.cursor()
 
             if self.current_table == "drivers":
-                # Open full driver dialog to collect structured info
-                c.execute("SELECT name FROM sites ORDER BY name")
-                sites = [r[0] for r in c.fetchall()]
-                # Ensure driver table has expected columns
-                ensure_driver_columns(conn)
-                dialog = DriverDialog(self, sites=sites)
-                if dialog.exec():
-                    data = dialog.get_data()
-                    # Validate required fields
-                    if not data['first_name'] or not data['last_name']:
-                        QMessageBox.warning(self, "Warning", "First and Last name are required!")
-                        conn.close()
-                        return
-                    if not data['nic'] or not data['license_no']:
-                        QMessageBox.warning(self, "Warning", "NIC and Driving License are required!")
-                        conn.close()
-                        return
-                    if not data['contact']:
-                        QMessageBox.warning(self, "Warning", "Contact number is required!")
-                        conn.close()
-                        return
-
-                    # Generate unique 8-char driver id
-                    driver_uid = generate_driver_uid(conn, data['first_name'], data['site'])
-                    display_name = f"{data['first_name']} {data['last_name']}"
-                    c.execute(
-                        "INSERT INTO drivers (name, first_name, middle_name, last_name, nic, license_no, address, contact, site, driver_uid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (display_name, data['first_name'], data['middle_name'], data['last_name'], data['nic'], data['license_no'], data['address'], data['contact'], data['site'], driver_uid)
-                    )
-                    conn.commit()
-                    conn.close()
-                    QMessageBox.information(self, "Success", f"Driver added successfully! ID: {driver_uid}")
-                    self.refresh_all()
-                    return
-                else:
-                    conn.close()
-                    return
+                c.execute("INSERT INTO drivers (name) VALUES (?)", (text,))
             elif self.current_table == "sites":
                 c.execute("INSERT INTO sites (name) VALUES (?)", (text,))
             elif self.current_table == "sections":
@@ -783,10 +600,9 @@ class DataManagerPage(QWidget):
 
             conn.commit()
             conn.close()
-
+            
             QMessageBox.information(self, "Success", "Record added successfully!")
             self.refresh_all()
-        
 
     def edit_record(self):
         selected_rows = self.table.selectionModel().selectedRows()
@@ -864,54 +680,18 @@ class DataManagerPage(QWidget):
                     QMessageBox.information(self, "Success", "Labour updated successfully!")
                     self.refresh_all()
         else:
-            # If editing drivers, open the full driver dialog to edit structured fields
-            if self.current_table == "drivers":
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                ensure_driver_columns(conn)
-                c.execute("SELECT name, first_name, middle_name, last_name, nic, license_no, address, contact, site, driver_uid FROM drivers WHERE id=?", (record_id,))
-                drv = c.fetchone()
-                conn.close()
-                if drv:
-                    edit_data = {
-                        'name': drv[0], 'first_name': drv[1] or '', 'middle_name': drv[2] or '',
-                        'last_name': drv[3] or '', 'nic': drv[4] or '', 'license_no': drv[5] or '',
-                        'address': drv[6] or '', 'contact': drv[7] or '', 'site': drv[8] or '', 'driver_uid': drv[9] or ''
-                    }
-                    # get sites for dropdown
-                    conn = sqlite3.connect(DB_PATH)
-                    c = conn.cursor()
-                    c.execute("SELECT name FROM sites ORDER BY name")
-                    sites = [r[0] for r in c.fetchall()]
-                    conn.close()
-                    dialog = DriverDialog(self, edit_data=edit_data, sites=sites)
-                    if dialog.exec():
-                        data = dialog.get_data()
-                        if not data['first_name'] or not data['last_name']:
-                            QMessageBox.warning(self, "Warning", "First and Last name are required!")
-                            return
-                        conn = sqlite3.connect(DB_PATH)
-                        c = conn.cursor()
-                        c.execute("UPDATE drivers SET first_name=?, middle_name=?, last_name=?, nic=?, license_no=?, address=?, contact=?, site=? WHERE id=?",
-                                  (data['first_name'], data['middle_name'], data['last_name'], data['nic'], data['license_no'], data['address'], data['contact'], data['site'], record_id))
-                        conn.commit()
-                        conn.close()
-                        QMessageBox.information(self, "Success", "Driver updated successfully!")
-                        self.refresh_all()
-                        return
-
             text = self.simple_input.text().strip()
             if not text:
                 QMessageBox.warning(self, "Warning", "Input field cannot be empty!")
                 return
-
+            
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             table_name = "outsource_types" if self.current_table == "outsource" else self.current_table
             c.execute(f"UPDATE {table_name} SET name=? WHERE id=?", (text, record_id))
             conn.commit()
             conn.close()
-
+            
             QMessageBox.information(self, "Success", "Record updated successfully!")
             self.refresh_all()
 
