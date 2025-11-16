@@ -143,6 +143,29 @@ class Styles:
                 background-color: #d1d5db;
             }}
         """
+
+    @staticmethod
+    def get_button_danger(color=ColorPalette.ACCENT_RED):
+        """Danger / destructive button stylesheet"""
+        return f"""
+            QPushButton {{
+                background-color: {color};
+                color: white;
+                font-size: 14px;
+                font-weight: 600;
+                padding: 10px 20px;
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
+                border: none;
+                min-height: 40px;
+            }}
+            QPushButton:hover {{
+                background-color: {ColorPalette.ACCENT_RED};
+                opacity: 0.9;
+            }}
+            QPushButton:pressed {{
+                background-color: {color};
+            }}
+        """
     
     @staticmethod
     def get_back_button():

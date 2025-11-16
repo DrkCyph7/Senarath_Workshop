@@ -5,6 +5,7 @@ Manages application initialization, database setup, and page navigation
 import sys
 import sqlite3
 import os
+import csv
 import logging
 from typing import Optional
 from PySide6.QtWidgets import QApplication, QStackedWidget, QMessageBox
@@ -84,6 +85,14 @@ def setup_database() -> bool:
             'outsource_types': '''CREATE TABLE IF NOT EXISTS outsource_types (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL
+            )''',
+            'spare_parts': '''CREATE TABLE IF NOT EXISTS spare_parts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                main_category TEXT NOT NULL,
+                sub_category TEXT NOT NULL,
+                id_code TEXT NOT NULL UNIQUE,
+                item_description TEXT NOT NULL,
+                uom TEXT NOT NULL
             )''',
             'job_cards': '''CREATE TABLE IF NOT EXISTS job_cards (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,6 +205,11 @@ def _insert_sample_data(cursor: sqlite3.Cursor) -> None:
         ]
         cursor.executemany("INSERT INTO labour (name, site, grade) VALUES (?, ?, ?)", sample_labour)
     
+    # Spare parts - import from CSV if available
+    cursor.execute("SELECT COUNT(*) FROM spare_parts")
+    if cursor.fetchone()[0] == 0:
+        _import_spare_parts_from_csv(cursor)
+    
     # Labour rates
     cursor.execute("SELECT COUNT(*) FROM labour_rates")
     if cursor.fetchone()[0] == 0:
@@ -220,6 +234,73 @@ def _insert_sample_data(cursor: sqlite3.Cursor) -> None:
             ('Fabrication',),
         ]
         cursor.executemany("INSERT INTO outsource_types (name) VALUES (?)", sample_outsource)
+
+
+def _import_spare_parts_from_csv(cursor: sqlite3.Cursor) -> None:
+    """
+    Import spare parts data from CSV file on Desktop.
+    
+    Args:
+        cursor: SQLite cursor object
+    """
+    try:
+        csv_path = os.path.expanduser("~/Desktop/db.csv")
+        
+        if not os.path.exists(csv_path):
+            logger.warning(f"CSV file not found at {csv_path}")
+            return
+        
+        # Try different encodings
+        encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+        csv_data = None
+        
+        for encoding in encodings:
+            try:
+                with open(csv_path, 'r', encoding=encoding) as csvfile:
+                    csv_reader = csv.DictReader(csvfile)
+                    spare_parts_data = []
+                    seen_codes = set()
+                    
+                    for row in csv_reader:
+                        id_code = row.get('ID CODE', '').strip()
+                        # Skip if duplicate or empty
+                        if not id_code or id_code in seen_codes:
+                            continue
+                        
+                        seen_codes.add(id_code)
+                        spare_parts_data.append((
+                            row.get('MAIN CATEGORY', '').strip(),
+                            row.get('SUB CATEGORY', '').strip(),
+                            id_code,
+                            row.get('ITEM DESCRIPTION', '').strip(),
+                            row.get('UOM', '').strip()
+                        ))
+                    
+                    csv_data = spare_parts_data
+                    break
+            except UnicodeDecodeError:
+                continue
+        
+        if csv_data and len(csv_data) > 0:
+            # Insert one by one to handle any remaining duplicates gracefully
+            success_count = 0
+            for item in csv_data:
+                try:
+                    cursor.execute(
+                        "INSERT INTO spare_parts (main_category, sub_category, id_code, item_description, uom) VALUES (?, ?, ?, ?, ?)",
+                        item
+                    )
+                    success_count += 1
+                except sqlite3.IntegrityError:
+                    # Skip duplicates silently
+                    continue
+            
+            logger.info(f"✅ Imported {success_count} spare parts from CSV")
+        else:
+            logger.warning("No data found in CSV file or unable to decode")
+                
+    except Exception as e:
+        logger.error(f"Error importing spare parts from CSV: {e}")
 
 
 class MainWindow(QStackedWidget):

@@ -187,6 +187,73 @@ class LabourRateDialog(QDialog):
         return {grade: spin.value() for grade, spin in self.rate_inputs.items()}
 
 
+class SparePartDialog(QDialog):
+    def __init__(self, parent=None, edit_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Add/Edit Spare Part")
+        self.setMinimumWidth(600)
+        
+        layout = QVBoxLayout()
+        form_layout = QGridLayout()
+        
+        self.main_category_input = QLineEdit()
+        self.main_category_input.setPlaceholderText("e.g., Electrical Item")
+        
+        self.sub_category_input = QLineEdit()
+        self.sub_category_input.setPlaceholderText("e.g., Domestic & Industrial")
+        
+        self.id_code_input = QLineEdit()
+        self.id_code_input.setPlaceholderText("e.g., EI-DI0001")
+        
+        self.item_description_input = QLineEdit()
+        self.item_description_input.setPlaceholderText("e.g., 1/1.13 mm (1m2) PVC Cable")
+        
+        self.uom_input = QLineEdit()
+        self.uom_input.setPlaceholderText("e.g., mtr, no's")
+        
+        form_layout.addWidget(QLabel("Main Category:"), 0, 0)
+        form_layout.addWidget(self.main_category_input, 0, 1)
+        
+        form_layout.addWidget(QLabel("Sub Category:"), 1, 0)
+        form_layout.addWidget(self.sub_category_input, 1, 1)
+        
+        form_layout.addWidget(QLabel("ID Code:"), 2, 0)
+        form_layout.addWidget(self.id_code_input, 2, 1)
+        
+        form_layout.addWidget(QLabel("Item Description:"), 3, 0)
+        form_layout.addWidget(self.item_description_input, 3, 1)
+        
+        form_layout.addWidget(QLabel("UOM:"), 4, 0)
+        form_layout.addWidget(self.uom_input, 4, 1)
+        
+        layout.addLayout(form_layout)
+        
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        
+        # If editing, populate fields
+        if edit_data:
+            self.main_category_input.setText(edit_data.get('main_category', ''))
+            self.sub_category_input.setText(edit_data.get('sub_category', ''))
+            self.id_code_input.setText(edit_data.get('id_code', ''))
+            self.item_description_input.setText(edit_data.get('item_description', ''))
+            self.uom_input.setText(edit_data.get('uom', ''))
+    
+    def get_data(self):
+        return {
+            'main_category': self.main_category_input.text().strip(),
+            'sub_category': self.sub_category_input.text().strip(),
+            'id_code': self.id_code_input.text().strip(),
+            'item_description': self.item_description_input.text().strip(),
+            'uom': self.uom_input.text().strip()
+        }
+
+
 class DataManagerPage(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -348,8 +415,10 @@ class DataManagerPage(QWidget):
         self.section_btn = QPushButton("🏗 Sections")
         self.labour_btn = QPushButton("👷 Labour")
         self.outsource_btn = QPushButton("🔨 Outsource Types")
+        self.spare_parts_btn = QPushButton("🔧 Spare Parts")
 
-        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn, self.labour_btn, self.outsource_btn]
+        self.tab_buttons = [self.vehicle_btn, self.driver_btn, self.site_btn, self.section_btn, 
+                           self.labour_btn, self.outsource_btn, self.spare_parts_btn]
         
         for btn in self.tab_buttons:
             btn.setObjectName("tab")
@@ -375,6 +444,23 @@ class DataManagerPage(QWidget):
         data_layout.addWidget(self.table)
         
         layout.addWidget(data_card, 1)
+
+        # === Search Bar ===
+        search_layout = QHBoxLayout()
+        search_layout.setSpacing(10)
+        
+        search_label = QLabel("🔍 Search:")
+        search_label.setObjectName("section_title")
+        search_layout.addWidget(search_label)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search by any field...")
+        self.search_input.setMaximumWidth(400)
+        self.search_input.textChanged.connect(self.filter_table)
+        search_layout.addWidget(self.search_input)
+        
+        search_layout.addStretch()
+        layout.addLayout(search_layout)
 
         # === Action Buttons ===
         action_layout = QHBoxLayout()
@@ -424,6 +510,7 @@ class DataManagerPage(QWidget):
         self.section_btn.clicked.connect(lambda: self.switch_table("sections"))
         self.labour_btn.clicked.connect(lambda: self.switch_table("labour"))
         self.outsource_btn.clicked.connect(lambda: self.switch_table("outsource"))
+        self.spare_parts_btn.clicked.connect(lambda: self.switch_table("spare_parts"))
         
         self.add_btn.clicked.connect(self.add_record)
         self.edit_btn.clicked.connect(self.edit_record)
@@ -435,9 +522,30 @@ class DataManagerPage(QWidget):
     def go_back(self):
         self.main_window.go_to_home()
 
+    def filter_table(self):
+        """Filter table rows based on search input"""
+        search_text = self.search_input.text().strip().lower()
+        
+        if not search_text:
+            # Show all rows
+            for row in range(self.table.rowCount()):
+                self.table.setRowHidden(row, False)
+            return
+        
+        # Hide rows that don't match the search
+        for row in range(self.table.rowCount()):
+            match_found = False
+            for col in range(1, self.table.columnCount()):  # Skip ID column
+                item = self.table.item(row, col)
+                if item and search_text in item.text().lower():
+                    match_found = True
+                    break
+            self.table.setRowHidden(row, not match_found)
+
     def switch_table(self, table_name):
         self.current_table = table_name
         self.current_edit_id = None
+        self.search_input.clear()  # Clear search when switching tables
         
         # Update tab button styles
         for btn in self.tab_buttons:
@@ -471,6 +579,10 @@ class DataManagerPage(QWidget):
             self.outsource_btn.setObjectName("tab_active")
             self.simple_input.setVisible(True)
             self.simple_input.setPlaceholderText("Enter outsource work type...")
+            self.labour_rates_btn.setVisible(False)
+        elif table_name == "spare_parts":
+            self.spare_parts_btn.setObjectName("tab_active")
+            self.simple_input.setVisible(False)
             self.labour_rates_btn.setVisible(False)
         
         # Force style refresh
@@ -507,6 +619,10 @@ class DataManagerPage(QWidget):
             c.execute("SELECT id, name FROM outsource_types ORDER BY name")
             data = c.fetchall()
             headers = ["ID", "Work Type"]
+        elif self.current_table == "spare_parts":
+            c.execute("SELECT id, main_category, sub_category, id_code, item_description, uom FROM spare_parts ORDER BY id_code")
+            data = c.fetchall()
+            headers = ["ID", "Main Category", "Sub Category", "ID Code", "Item Description", "UOM"]
         else:
             data, headers = [], []
 
@@ -531,7 +647,7 @@ class DataManagerPage(QWidget):
 
     def on_selection_changed(self):
         selected_rows = self.table.selectionModel().selectedRows()
-        if selected_rows and self.current_table != "vehicles":
+        if selected_rows and self.current_table not in ["vehicles", "labour", "spare_parts"]:
             row = selected_rows[0].row()
             self.current_edit_id = int(self.table.item(row, 0).text())
             name = self.table.item(row, 1).text()
@@ -580,6 +696,28 @@ class DataManagerPage(QWidget):
                 
                 QMessageBox.information(self, "Success", "Labour added successfully!")
                 self.refresh_all()
+        elif self.current_table == "spare_parts":
+            dialog = SparePartDialog(self)
+            if dialog.exec():
+                data = dialog.get_data()
+                if not data['id_code'] or not data['item_description']:
+                    QMessageBox.warning(self, "Warning", "ID Code and Item Description are required!")
+                    return
+                
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                try:
+                    c.execute("""INSERT INTO spare_parts (main_category, sub_category, id_code, item_description, uom) 
+                                 VALUES (?, ?, ?, ?, ?)""",
+                             (data['main_category'], data['sub_category'], data['id_code'], 
+                              data['item_description'], data['uom']))
+                    conn.commit()
+                    QMessageBox.information(self, "Success", "Spare part added successfully!")
+                    self.refresh_all()
+                except sqlite3.IntegrityError:
+                    QMessageBox.warning(self, "Error", f"ID Code '{data['id_code']}' already exists!")
+                finally:
+                    conn.close()
         else:
             text = self.simple_input.text().strip()
             if not text:
@@ -679,6 +817,43 @@ class DataManagerPage(QWidget):
                     
                     QMessageBox.information(self, "Success", "Labour updated successfully!")
                     self.refresh_all()
+        elif self.current_table == "spare_parts":
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT main_category, sub_category, id_code, item_description, uom FROM spare_parts WHERE id=?", (record_id,))
+            spare_part_data = c.fetchone()
+            conn.close()
+            
+            if spare_part_data:
+                edit_data = {
+                    'main_category': spare_part_data[0],
+                    'sub_category': spare_part_data[1],
+                    'id_code': spare_part_data[2],
+                    'item_description': spare_part_data[3],
+                    'uom': spare_part_data[4]
+                }
+                
+                dialog = SparePartDialog(self, edit_data=edit_data)
+                if dialog.exec():
+                    data = dialog.get_data()
+                    if not data['id_code'] or not data['item_description']:
+                        QMessageBox.warning(self, "Warning", "ID Code and Item Description are required!")
+                        return
+                    
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    try:
+                        c.execute("""UPDATE spare_parts SET main_category=?, sub_category=?, id_code=?, 
+                                     item_description=?, uom=? WHERE id=?""",
+                                 (data['main_category'], data['sub_category'], data['id_code'], 
+                                  data['item_description'], data['uom'], record_id))
+                        conn.commit()
+                        QMessageBox.information(self, "Success", "Spare part updated successfully!")
+                        self.refresh_all()
+                    except sqlite3.IntegrityError:
+                        QMessageBox.warning(self, "Error", f"ID Code '{data['id_code']}' already exists!")
+                    finally:
+                        conn.close()
         else:
             text = self.simple_input.text().strip()
             if not text:
