@@ -9,8 +9,23 @@ a = Analysis(
     binaries=[],
     datas=[
         ('assets', 'assets'),              # Include assets folder if it has files
+        ('ui/db', 'ui/db'),                # Include database folder
     ],
-    hiddenimports=['PySide6'],
+    hiddenimports=[
+        'PySide6',
+        'reportlab',
+        'reportlab.lib',
+        'reportlab.lib.pagesizes',
+        'reportlab.lib.styles',
+        'reportlab.lib.units',
+        'reportlab.platypus',
+        'reportlab.lib.colors',
+        'reportlab.lib.enums',
+        'reportlab.pdfgen',
+        'reportlab.pdfgen.canvas',
+        'openpyxl',
+        'openpyxl.styles',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
