@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox, QComboBox,
     QDateEdit, QCheckBox, QFrame, QDialog, QTextEdit, QGridLayout,
     QDialogButtonBox, QScrollArea, QSpinBox, QDoubleSpinBox, QTabWidget,
-    QHeaderView, QFileDialog, QInputDialog, QRadioButton
+    QHeaderView, QFileDialog, QInputDialog, QRadioButton, QCompleter
 )
 from PySide6.QtCore import Qt, QDate, QTimer
 from PySide6.QtGui import QFont, QColor, QPixmap
@@ -183,8 +183,9 @@ class SparePartEditDialog(QDialog):
         table_layout.setContentsMargins(12, 12, 12, 12)
         table_layout.setSpacing(12)
 
-        self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Unit Price", "Total"])
+        # Updated to reflect DB-driven spare part fields
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(["#", "ID Code", "Description", "Category", "Quantity", "Unit", "Unit Price", "Total"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
@@ -234,12 +235,13 @@ class SparePartEditDialog(QDialog):
         grand_total = 0.0
         for row_idx, part in enumerate(self.spare_parts_data):
             self.table.setItem(row_idx, 0, QTableWidgetItem(str(row_idx + 1)))
-            self.table.setItem(row_idx, 1, QTableWidgetItem(part.get("description", "")))
-            self.table.setItem(row_idx, 2, QTableWidgetItem(part.get("ref_no", "")))
-            self.table.setItem(row_idx, 3, QTableWidgetItem(str(part.get("quantity", ""))))
-            self.table.setItem(row_idx, 4, QTableWidgetItem(part.get("unit", "")))
-            self.table.setItem(row_idx, 5, QTableWidgetItem(str(part.get("unit_price", ""))))
-            self.table.setItem(row_idx, 6, QTableWidgetItem(str(part.get("total", ""))))
+            self.table.setItem(row_idx, 1, QTableWidgetItem(part.get("id_code", "")))
+            self.table.setItem(row_idx, 2, QTableWidgetItem(part.get("description", "")))
+            self.table.setItem(row_idx, 3, QTableWidgetItem(part.get("category", "")))
+            self.table.setItem(row_idx, 4, QTableWidgetItem(str(part.get("quantity", ""))))
+            self.table.setItem(row_idx, 5, QTableWidgetItem(part.get("unit", "")))
+            self.table.setItem(row_idx, 6, QTableWidgetItem(str(part.get("unit_price", ""))))
+            self.table.setItem(row_idx, 7, QTableWidgetItem(str(part.get("total", ""))))
             try:
                 grand_total += float(part.get("total", 0) or 0)
             except (ValueError, TypeError):
@@ -875,6 +877,46 @@ class JobCardEditDialog(QDialog):
         self.end_date_input.setDisplayFormat('yyyy-MM-dd')
         if job_data.get('end_date',''):
             self.end_date_input.setDate(QDate.fromString(job_data.get('end_date',''), 'yyyy-MM-dd'))
+        
+        # Status dropdown
+        self.status_input = QComboBox()
+        self.status_input.setEditable(False)
+        self.status_input.addItems(['In Progress', 'Completed'])
+        self.status_input.setCurrentText(job_data.get('status', 'In Progress'))
+        self.status_input.setStyleSheet(f"""
+            QComboBox {{
+                background-color: {ColorPalette.BG_PRIMARY};
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                padding: 4px 6px;
+                padding-right: 25px;
+                min-height: 26px;
+                font-size: 12px;
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid {ColorPalette.BORDER_LIGHT};
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid {ColorPalette.TEXT_PRIMARY};
+            }}
+            QComboBox:hover {{
+                border: 1px solid {ColorPalette.ACCENT_PRIMARY};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: white;
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                selection-background-color: {ColorPalette.ACCENT_PRIMARY};
+                selection-color: white;
+            }}
+        """)
 
         # place fields compactly (two-column small form)
         form_layout.addWidget(QLabel('Job No:'), 0, 0); form_layout.addWidget(self.job_no_input, 0, 1)
@@ -889,6 +931,7 @@ class JobCardEditDialog(QDialog):
         form_layout.addWidget(QLabel('Start Date:'), 4, 2); form_layout.addWidget(self.start_date_input, 4, 3)
         form_layout.addWidget(QLabel('Type:'), 5, 0); form_layout.addWidget(self.type_input, 5, 1)
         form_layout.addWidget(QLabel('End Date:'), 5, 2); form_layout.addWidget(self.end_date_input, 5, 3)
+        form_layout.addWidget(QLabel('Status:'), 6, 0); form_layout.addWidget(self.status_input, 6, 1)
 
         details_layout.addLayout(form_layout)
 
@@ -1094,7 +1137,7 @@ class JobCardEditDialog(QDialog):
             c.execute(
                 "UPDATE job_cards SET company_no=?, vehicle_no=?, driver=?, make=?, model=?, type=?, "
                 "site=?, section=?, hr_km=?, start_date=?, end_date=?, description=?, spare_parts=?, "
-                "labour_works=?, outsource_works=? WHERE id=?",
+                "labour_works=?, outsource_works=?, status=? WHERE id=?",
                 (
                     self.company_no_input.currentText().strip(),
                     self.vehicle_input.currentText().strip(),
@@ -1111,6 +1154,7 @@ class JobCardEditDialog(QDialog):
                     self.spare_parts_data,
                     self.labour_works_data,
                     self.outsource_works_data,
+                    self.status_input.currentText(),
                     self.job_id
                 )
             )
@@ -1264,6 +1308,40 @@ class JobCardDetailDialog(QDialog):
             f"padding: 6px 12px;"
         )
         title_row.addWidget(date_label)
+        
+        # Status badge with edit button
+        status_container = QHBoxLayout()
+        status_container.setSpacing(4)
+        current_status = job_data.get('status', 'In Progress')
+        status_color = '#059669' if current_status == 'Completed' else '#f59e0b'
+        status_text_color = 'white' if current_status == 'Completed' else '#78350f'
+        self.status_label = QLabel(f"● {current_status.upper()}")
+        self.status_label.setStyleSheet(
+            f"color: {status_text_color}; font-weight: 700; font-size: 11px; "
+            f"background-color: {status_color}; padding: 6px 12px; "
+            f"border-radius: {Spacing.BORDER_RADIUS_SMALL}px;"
+        )
+        status_container.addWidget(self.status_label)
+        
+        edit_status_btn = QPushButton("✏️")
+        edit_status_btn.setFixedSize(28, 28)
+        edit_status_btn.setCursor(Qt.PointingHandCursor)
+        edit_status_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ColorPalette.BG_SECONDARY};
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: 4px;
+                font-size: 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
+            }}
+        """)
+        edit_status_btn.clicked.connect(self.edit_status)
+        status_container.addWidget(edit_status_btn)
+        
+        title_row.addLayout(status_container)
         title_row.addStretch()
         header_layout.addLayout(title_row)
 
@@ -1455,26 +1533,30 @@ class JobCardDetailDialog(QDialog):
             layout.addStretch()
             return tab
 
-        table = QTableWidget(len(self.spare_parts), 7)
-        table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Unit Price", "Total"])
+        table = QTableWidget(len(self.spare_parts), 9)
+        table.setHorizontalHeaderLabels(["#", "ID Code", "Description", "Category", "Quantity", "Unit", "Unit Price", "Total", "Remark"])
         self._configure_table(table)
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(8, QHeaderView.Stretch)
 
         for row, part in enumerate(self.spare_parts):
             table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
-            table.setItem(row, 1, QTableWidgetItem(part.get('description', '')))
-            table.setItem(row, 2, QTableWidgetItem(part.get('ref_no', '')))
-            table.setItem(row, 3, QTableWidgetItem(str(part.get('quantity', ''))))
-            table.setItem(row, 4, QTableWidgetItem(part.get('unit', '')))
-            table.setItem(row, 5, QTableWidgetItem(self._format_currency(part.get('unit_price', 0))))
-            table.setItem(row, 6, QTableWidgetItem(self._format_currency(part.get('total', 0))))
+            table.setItem(row, 1, QTableWidgetItem(part.get('id_code', '')))
+            table.setItem(row, 2, QTableWidgetItem(part.get('description', '')))
+            table.setItem(row, 3, QTableWidgetItem(part.get('category', '')))
+            table.setItem(row, 4, QTableWidgetItem(str(part.get('quantity', ''))))
+            table.setItem(row, 5, QTableWidgetItem(part.get('unit', '')))
+            table.setItem(row, 6, QTableWidgetItem(self._format_currency(part.get('unit_price', 0))))
+            table.setItem(row, 7, QTableWidgetItem(self._format_currency(part.get('total', 0))))
+            table.setItem(row, 8, QTableWidgetItem(part.get('remark', '')))
 
         table.resizeRowsToContents()
         layout.addWidget(table)
@@ -1657,46 +1739,139 @@ class JobCardDetailDialog(QDialog):
         except Exception:
             return ""
 
+    def edit_status(self):
+        """Edit job card status"""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QComboBox, QPushButton, QHBoxLayout
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Update Job Status")
+        dialog.setMinimumWidth(350)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {ColorPalette.BG_PRIMARY};
+            }}
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title_label = QLabel("Update Status")
+        title_label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: 700; font-size: 16px;")
+        layout.addWidget(title_label)
+        
+        # Current status info
+        current_status = self.job_data.get('status', 'In Progress')
+        info_label = QLabel(f"Current Status: {current_status}")
+        info_label.setStyleSheet(f"color: {ColorPalette.TEXT_SECONDARY}; font-size: 12px;")
+        layout.addWidget(info_label)
+        
+        # Status dropdown
+        label = QLabel("Select new status:")
+        label.setStyleSheet(f"color: {ColorPalette.TEXT_PRIMARY}; font-weight: 600; font-size: 13px; margin-top: 8px;")
+        layout.addWidget(label)
+        
+        status_combo = QComboBox()
+        status_combo.setEditable(False)
+        status_combo.addItems(["In Progress", "Completed"])
+        status_combo.setCurrentText(current_status)
+        status_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: white;
+                border: 2px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: 6px;
+                padding: 10px;
+                padding-right: 35px;
+                font-size: 13px;
+                min-height: 20px;
+            }}
+            QComboBox:hover {{
+                border: 2px solid {ColorPalette.ACCENT_PRIMARY};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 30px;
+                border-left: 1px solid {ColorPalette.BORDER_LIGHT};
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 0;
+                height: 0;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid {ColorPalette.TEXT_PRIMARY};
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: white;
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                selection-background-color: {ColorPalette.ACCENT_PRIMARY};
+                selection-color: white;
+                padding: 4px;
+            }}
+        """)
+        layout.addWidget(status_combo)
+        
+        layout.addSpacing(8)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setMinimumWidth(100)
+        cancel_btn.setStyleSheet(Styles.get_button_secondary())
+        cancel_btn.clicked.connect(dialog.reject)
+        
+        save_btn = QPushButton("Update Status")
+        save_btn.setMinimumWidth(100)
+        save_btn.setStyleSheet(Styles.get_button_primary())
+        save_btn.clicked.connect(dialog.accept)
+        
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(save_btn)
+        layout.addLayout(btn_layout)
+        
+        if dialog.exec():
+            new_status = status_combo.currentText()
+            
+            # Don't update if status hasn't changed
+            if new_status == current_status:
+                return
+            
+            job_id = self.job_data.get('id')
+            
+            try:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("UPDATE job_cards SET status = ? WHERE id = ?", (new_status, job_id))
+                conn.commit()
+                conn.close()
+                
+                # Update UI
+                self.job_data['status'] = new_status
+                status_color = '#059669' if new_status == 'Completed' else '#f59e0b'
+                status_text_color = 'white' if new_status == 'Completed' else '#78350f'
+                self.status_label.setText(f"● {new_status.upper()}")
+                self.status_label.setStyleSheet(
+                    f"color: {status_text_color}; font-weight: 700; font-size: 11px; "
+                    f"background-color: {status_color}; padding: 6px 12px; "
+                    f"border-radius: {Spacing.BORDER_RADIUS_SMALL}px;"
+                )
+                
+                QMessageBox.information(self, "Success", f"Status updated to '{new_status}'")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to update status: {str(e)}")
+
     def export_to_pdf(self):
         """Export job card details to PDF."""
         if not HAS_REPORTLAB:
             QMessageBox.warning(self, "Not Available", "PDF export requires reportlab library.")
             return
 
-        class _StatusDialog(QDialog):
-            def __init__(self, parent=None):
-                super().__init__(parent)
-                self.setWindowTitle("Job Status")
-                self.setMinimumWidth(280)
-
-                layout = QVBoxLayout(self)
-                layout.setContentsMargins(16, 16, 16, 16)
-                layout.setSpacing(10)
-
-                prompt = QLabel("Select the job card status for this PDF.")
-                prompt.setWordWrap(True)
-                layout.addWidget(prompt)
-
-                self.completed_radio = QRadioButton("Completed")
-                self.not_completed_radio = QRadioButton("Not Completed")
-                self.completed_radio.setChecked(True)
-
-                layout.addWidget(self.completed_radio)
-                layout.addWidget(self.not_completed_radio)
-                layout.addStretch()
-
-                buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-                buttons.accepted.connect(self.accept)
-                buttons.rejected.connect(self.reject)
-                layout.addWidget(buttons)
-
-            def get_status(self):
-                return "Completed" if self.completed_radio.isChecked() else "Not Completed"
-
-        status_dialog = _StatusDialog(self)
-        if status_dialog.exec() != QDialog.Accepted:
-            return
-        status_display = status_dialog.get_status()
+        # Use the status from job data
+        status_display = self.job_data.get('status', 'In Progress')
 
         job_data = self.job_data
         spare_total = self.spare_total
@@ -2024,26 +2199,28 @@ class JobCardDetailDialog(QDialog):
             for idx, part in enumerate(self.spare_parts, 1):
                 spare_rows.append([
                     str(idx),
+                    Paragraph(clean_paragraph_text(part.get('id_code', '—')), table_body_style),
                     Paragraph(clean_paragraph_text(part.get('description', '—')), table_body_style),
-                    Paragraph(clean_paragraph_text(part.get('ref_no', '—')), table_body_style),
+                    Paragraph(clean_paragraph_text(part.get('category', '—')), table_body_style),
                     str(part.get('quantity', '') or '—'),
                     Paragraph(clean_paragraph_text(part.get('unit', '—')), table_body_style),
                     self._format_currency(part.get('unit_price', 0)),
                     self._format_currency(part.get('total', 0)),
+                    Paragraph(clean_paragraph_text(part.get('remark', '')), table_body_style),
                 ])
             spare_summary = (
                 f"<b>{len(self.spare_parts)}</b> items captured &bull; Total spend {escape(self._format_currency(spare_total))}"
             )
             build_dataset_section(
                 'Spare Parts & Materials',
-                ['#', 'Description', 'Ref No', 'Qty', 'Unit', 'Unit Price', 'Total'],
+                ['#', 'ID Code', 'Description', 'Category', 'Qty', 'Unit', 'Unit Price', 'Total', 'Remark'],
                 spare_rows,
-                [0.4, 2.2, 0.9, 0.6, 0.7, 0.9, 0.9],
+                [0.4, 0.9, 2.0, 1.1, 0.6, 0.7, 0.9, 0.9, 1.2],
                 spare_summary,
                 style_extras=[
-                    ('ALIGN', (3, 1), (3, -1), 'CENTER'),
                     ('ALIGN', (4, 1), (4, -1), 'CENTER'),
-                    ('ALIGN', (5, 1), (6, -1), 'RIGHT'),
+                    ('ALIGN', (5, 1), (5, -1), 'CENTER'),
+                    ('ALIGN', (6, 1), (7, -1), 'RIGHT'),
                 ],
             )
 
@@ -2430,7 +2607,7 @@ class JobCardRecordsPage(QWidget):
         filter_row2.addWidget(self.end_date)
         
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Status", "Completed", "In Progress", "Pending"])
+        self.status_filter.addItems(["All Status", "In Progress", "Completed"])
         self.status_filter.setMaximumHeight(28)
         self.status_filter.setMaximumWidth(160)
         try:
@@ -2488,6 +2665,48 @@ class JobCardRecordsPage(QWidget):
 
         filter_row2.addStretch()
         filter_layout.addLayout(filter_row2)
+
+        # Row 3: Driver + Vehicle No + Spare Part + Labour
+        filter_row3 = QHBoxLayout()
+        filter_row3.setSpacing(5)
+
+        self.driver_filter = QComboBox()
+        self.driver_filter.addItem("All Drivers")
+        self.driver_filter.setMaximumHeight(28)
+        self.driver_filter.setMaximumWidth(220)
+        self.driver_filter.setMinimumWidth(140)
+        self.driver_filter.setStyleSheet(dropdown_style)
+        try:
+            self.driver_filter.view().setMinimumWidth(300)
+        except Exception:
+            pass
+        filter_row3.addWidget(self.driver_filter)
+
+        self.vehicle_no_filter = QComboBox()
+        self.vehicle_no_filter.addItem("All Vehicles")
+        self.vehicle_no_filter.setMaximumHeight(28)
+        self.vehicle_no_filter.setMaximumWidth(220)
+        self.vehicle_no_filter.setMinimumWidth(140)
+        self.vehicle_no_filter.setStyleSheet(dropdown_style)
+        try:
+            self.vehicle_no_filter.view().setMinimumWidth(300)
+        except Exception:
+            pass
+        filter_row3.addWidget(self.vehicle_no_filter)
+
+        self.spare_part_filter = QLineEdit()
+        self.spare_part_filter.setPlaceholderText("Filter by Spare Part (name or ID code)")
+        self.spare_part_filter.setMaximumHeight(28)
+        self.spare_part_filter.setStyleSheet(dropdown_style)
+        filter_row3.addWidget(self.spare_part_filter, 1)
+
+        self.labour_name_filter = QLineEdit()
+        self.labour_name_filter.setPlaceholderText("Filter by Labour (name/team)")
+        self.labour_name_filter.setMaximumHeight(28)
+        self.labour_name_filter.setStyleSheet(dropdown_style)
+        filter_row3.addWidget(self.labour_name_filter, 1)
+
+        filter_layout.addLayout(filter_row3)
         layout.addWidget(filter_card)
 
         # === Navigation & Action Buttons (Compact) ===
@@ -2551,10 +2770,10 @@ class JobCardRecordsPage(QWidget):
 
         # === Table ===
         self.table = QTableWidget()
-        self.table.setColumnCount(11)
+        self.table.setColumnCount(12)
         self.table.setHorizontalHeaderLabels([
             "ID", "Job No", "Company No", "Vehicle No", "Driver",
-            "Make", "Model", "Type", "Site", "Section", "Start Date"
+            "Make", "Model", "Type", "Site", "Section", "Start Date", "Status"
         ])
         self.table.setColumnHidden(0, True)
         self.table.setSortingEnabled(True)
@@ -2566,6 +2785,105 @@ class JobCardRecordsPage(QWidget):
         self.setLayout(layout)
         self.load_filter_options()
         self.load_records()
+        # Initialize type-ahead suggestions after loading data
+        try:
+            self._setup_completers()
+        except Exception:
+            pass
+
+    def _configure_combobox_completion(self, combo: QComboBox):
+        try:
+            combo.setEditable(True)
+            combo.setInsertPolicy(QComboBox.NoInsert)
+            comp = QCompleter(combo.model(), self)
+            comp.setCaseSensitivity(Qt.CaseInsensitive)
+            comp.setFilterMode(Qt.MatchContains)
+            comp.setCompletionMode(QCompleter.PopupCompletion)
+            combo.setCompleter(comp)
+        except Exception:
+            pass
+
+    def _setup_completers(self):
+        """Attach QCompleter to search fields and editable combos."""
+        # 1) Global search suggestions from job_cards key fields
+        suggestions = set()
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT job_no, company_no, vehicle_no, driver, site, section, make, model, type FROM job_cards")
+            for row in c.fetchall():
+                for val in row:
+                    if val and isinstance(val, str):
+                        v = val.strip()
+                        if v:
+                            suggestions.add(v)
+            conn.close()
+        except Exception:
+            pass
+        try:
+            comp_all = QCompleter(sorted(suggestions), self)
+            comp_all.setCaseSensitivity(Qt.CaseInsensitive)
+            comp_all.setFilterMode(Qt.MatchContains)
+            comp_all.setCompletionMode(QCompleter.PopupCompletion)
+            self.search_input.setCompleter(comp_all)
+        except Exception:
+            pass
+
+        # 2) Spare parts suggestions from spare_parts table
+        spare_suggestions = []
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT id_code, item_description FROM spare_parts")
+            for idc, desc in c.fetchall():
+                idc = (idc or '').strip()
+                desc = (desc or '').strip()
+                if idc and desc:
+                    spare_suggestions.append(f"{idc} — {desc}")
+                elif idc:
+                    spare_suggestions.append(idc)
+                elif desc:
+                    spare_suggestions.append(desc)
+            conn.close()
+        except Exception:
+            pass
+        try:
+            comp_sp = QCompleter(sorted(set(spare_suggestions)), self)
+            comp_sp.setCaseSensitivity(Qt.CaseInsensitive)
+            comp_sp.setFilterMode(Qt.MatchContains)
+            comp_sp.setCompletionMode(QCompleter.PopupCompletion)
+            self.spare_part_filter.setCompleter(comp_sp)
+        except Exception:
+            pass
+
+        # 3) Labour suggestions from labour table
+        labour_suggestions = []
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT name FROM labour WHERE name IS NOT NULL AND name != ''")
+            labour_suggestions = [r[0] for r in c.fetchall() if r and r[0]]
+            conn.close()
+        except Exception:
+            pass
+        try:
+            comp_lb = QCompleter(sorted(set(labour_suggestions)), self)
+            comp_lb.setCaseSensitivity(Qt.CaseInsensitive)
+            comp_lb.setFilterMode(Qt.MatchContains)
+            comp_lb.setCompletionMode(QCompleter.PopupCompletion)
+            self.labour_name_filter.setCompleter(comp_lb)
+        except Exception:
+            pass
+
+        # 4) Enable type-ahead on combo filters
+        for combo in [
+            self.site_filter,
+            self.section_filter,
+            self.type_filter,
+            self.driver_filter,
+            self.vehicle_no_filter,
+        ]:
+            self._configure_combobox_completion(combo)
 
     def on_date_filter_changed(self, filter_type):
         """Show/hide date inputs based on filter type"""
@@ -2594,20 +2912,36 @@ class JobCardRecordsPage(QWidget):
         c.execute("SELECT DISTINCT type FROM vehicles WHERE type IS NOT NULL AND type != '' ORDER BY type")
         for row in c.fetchall():
             self.type_filter.addItem(row[0])
+
+        # Load drivers
+        c.execute("SELECT DISTINCT name FROM drivers WHERE name IS NOT NULL AND name != '' ORDER BY name")
+        for row in c.fetchall():
+            self.driver_filter.addItem(row[0])
+
+        # Load vehicle numbers
+        c.execute("SELECT DISTINCT number FROM vehicles WHERE number IS NOT NULL AND number != '' AND number != '-' ORDER BY number")
+        for row in c.fetchall():
+            self.vehicle_no_filter.addItem(row[0])
         
         conn.close()
+        # Refresh completers when filters are loaded
+        try:
+            self._setup_completers()
+        except Exception:
+            pass
 
     def load_records(self):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date,
+                     COALESCE(status, 'In Progress'),
                      spare_parts, labour_works
                      FROM job_cards ORDER BY id DESC""")
         rows = c.fetchall()
         conn.close()
         
-        # Extract table data (first 11 columns)
-        table_rows = [row[:11] for row in rows]
+        # Extract table data (first 12 columns including status)
+        table_rows = [row[:12] for row in rows]
         self.populate_table(table_rows)
 
     def apply_filters(self):
@@ -2615,6 +2949,7 @@ class JobCardRecordsPage(QWidget):
         c = conn.cursor()
         
         query = """SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, site, section, start_date,
+                   COALESCE(status, 'In Progress'),
                    spare_parts, labour_works, outsource_works
                    FROM job_cards WHERE 1=1"""
         params = []
@@ -2642,6 +2977,18 @@ class JobCardRecordsPage(QWidget):
         if type_filter != "All Types":
             query += " AND type = ?"
             params.append(type_filter)
+
+        # Driver filter
+        driver_val = self.driver_filter.currentText()
+        if driver_val != "All Drivers":
+            query += " AND driver = ?"
+            params.append(driver_val)
+
+        # Vehicle number filter
+        vehicle_no_val = self.vehicle_no_filter.currentText()
+        if vehicle_no_val != "All Vehicles":
+            query += " AND vehicle_no = ?"
+            params.append(vehicle_no_val)
         
         # Date filter
         filter_type = self.date_filter_type.currentText()
@@ -2691,23 +3038,29 @@ class JobCardRecordsPage(QWidget):
         status_filter = self.status_filter.currentText()
         
         filtered_rows = []
+
+        # Text filters for JSON contents
+        spare_text = self.spare_part_filter.text().strip().lower()
+        labour_text = self.labour_name_filter.text().strip().lower()
         for row in all_rows:
             total_cost = 0.0
             
             # Calculate total from spare parts
+            spare_parts = []
             try:
                 spare_parts = json.loads(row[11]) if row[11] else []
                 for part in spare_parts:
                     total_cost += float(part.get('total', 0))
-            except:
+            except Exception:
                 pass
             
             # Calculate total from labour works
+            labour_works = []
             try:
                 labour_works = json.loads(row[12]) if row[12] else []
                 for work in labour_works:
                     total_cost += float(work.get('work_cost', 0))
-            except:
+            except Exception:
                 pass
             
             # Calculate total from outsource works
@@ -2722,25 +3075,57 @@ class JobCardRecordsPage(QWidget):
             if not (min_cost <= total_cost <= max_cost):
                 continue
             
-            # Check status filter
+            # Check status filter using actual DB status column (row[11])
             if status_filter != "All Status":
-                # Simple status logic based on end_date
-                end_date_str = row[10]  # start_date column
-                if end_date_str:
-                    try:
-                        end_date = QDate.fromString(end_date_str, "yyyy-MM-dd")
-                        today = QDate.currentDate()
-                        
-                        if status_filter == "Completed" and end_date >= today:
-                            continue
-                        elif status_filter == "In Progress" and not (end_date <= today and row[10]):
-                            continue
-                        elif status_filter == "Pending" and total_cost > 0:
-                            continue
-                    except:
-                        pass
+                actual_status = row[11] if len(row) > 11 else 'In Progress'
+                if status_filter != actual_status:
+                    continue
             
-            filtered_rows.append(row[:11])
+            # Spare part content filter (matches id_code, description, category, unit)
+            if spare_text:
+                found = False
+                for p in spare_parts:
+                    try:
+                        hay = " ".join([
+                            str(p.get('id_code', '')),
+                            str(p.get('description', '')),
+                            str(p.get('category', '')),
+                            str(p.get('unit', '')),
+                        ]).lower()
+                        if spare_text in hay:
+                            found = True
+                            break
+                    except Exception:
+                        continue
+                if not found:
+                    continue
+
+            # Labour content filter (matches labour names/grades and description)
+            if labour_text:
+                found_labour = False
+                for w in labour_works:
+                    try:
+                        desc = str(w.get('description', '')).lower()
+                        if labour_text and labour_text in desc:
+                            found_labour = True
+                            break
+                        labour_list = w.get('labour_list', [])
+                        if isinstance(labour_list, str):
+                            labour_list = json.loads(labour_list)
+                        for item in labour_list:
+                            nm = str(item.get('name', '')).lower()
+                            gr = str(item.get('grade', '')).lower()
+                            if labour_text in nm or (gr and labour_text in gr):
+                                found_labour = True
+                                break
+                        if found_labour:
+                            break
+                    except Exception:
+                        continue
+                if not found_labour:
+                    continue
+
+            filtered_rows.append(row[:12])
         
         self.populate_table(filtered_rows)
 
@@ -2749,6 +3134,10 @@ class JobCardRecordsPage(QWidget):
         self.site_filter.setCurrentIndex(0)
         self.section_filter.setCurrentIndex(0)
         self.type_filter.setCurrentIndex(0)
+        self.driver_filter.setCurrentIndex(0)
+        self.vehicle_no_filter.setCurrentIndex(0)
+        self.spare_part_filter.clear()
+        self.labour_name_filter.clear()
         self.status_filter.setCurrentIndex(0)
         self.date_filter_type.setCurrentIndex(0)
         self.start_date.setDate(QDate.currentDate().addDays(-30))
@@ -2848,10 +3237,9 @@ class JobCardRecordsPage(QWidget):
         
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("""SELECT job_no, company_no, vehicle_no, driver,
-                     COALESCE((SELECT driver_uid FROM drivers WHERE drivers.name = job_cards.driver LIMIT 1), ''),
-                     make, model, type, 
-                     site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works
+        c.execute("""SELECT job_no, company_no, vehicle_no, driver, make, model, type, 
+                     site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works,
+                     COALESCE(status, 'In Progress')
                      FROM job_cards WHERE id=?""", (record_id,))
         row = c.fetchone()
         conn.close()
@@ -2862,19 +3250,21 @@ class JobCardRecordsPage(QWidget):
                 'company_no': row[1],
                 'vehicle_no': row[2],
                 'driver': row[3],
-                'driver_id': row[4] or '',
-                'make': row[5],
-                'model': row[6],
-                'type': row[7],
-                'site': row[8],
-                'section': row[9],
-                'hr_km': row[10],
-                'start_date': row[11],
-                'end_date': row[12],
-                'description': row[13],
-                'spare_parts': row[14],
-                'labour_works': row[15],
-                'outsource_works': row[16],
+                'driver_id': '',  # No driver_uid column in database
+                'make': row[4],
+                'model': row[5],
+                'type': row[6],
+                'site': row[7],
+                'section': row[8],
+                'hr_km': row[9],
+                'start_date': row[10],
+                'end_date': row[11],
+                'description': row[12],
+                'spare_parts': row[13],
+                'labour_works': row[14],
+                'outsource_works': row[15],
+                'status': row[16],
+                'id': record_id  # Pass ID for status updates
             }
             dialog = JobCardDetailDialog(job_data, self)
             dialog.exec()
@@ -2900,7 +3290,8 @@ class JobCardRecordsPage(QWidget):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, 
-                     site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works
+                     site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works,
+                     COALESCE(status, 'In Progress')
                      FROM job_cards WHERE id=?""", (record_id,))
         row = c.fetchone()
         conn.close()
@@ -2911,7 +3302,8 @@ class JobCardRecordsPage(QWidget):
                 'driver': row[4], 'make': row[5], 'model': row[6], 'type': row[7],
                 'site': row[8], 'section': row[9], 'hr_km': row[10],
                 'start_date': row[11], 'end_date': row[12], 'description': row[13],
-                'spare_parts': row[14], 'labour_works': row[15], 'outsource_works': row[16]
+                'spare_parts': row[14], 'labour_works': row[15], 'outsource_works': row[16],
+                'status': row[17]
             }
             dialog = JobCardEditDialog(job_data, self)
             if dialog.exec():

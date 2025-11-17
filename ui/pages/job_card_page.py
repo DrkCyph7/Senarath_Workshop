@@ -19,7 +19,12 @@ class SparePartDialog(QDialog):
     def __init__(self, parent=None, edit_data=None):
         super().__init__(parent)
         self.setWindowTitle("Add/Edit Spare Part")
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(650)
+        self.setMinimumHeight(550)
+        
+        # Load spare parts from database
+        self.spare_parts_db = {}
+        self.load_spare_parts_db()
         
         # Modern dialog styling using theme
         self.setStyleSheet(f"""
@@ -29,31 +34,63 @@ class SparePartDialog(QDialog):
             QLabel {{
                 color: {ColorPalette.TEXT_PRIMARY};
                 font-weight: {Typography.WEIGHT_SEMIBOLD};
-                font-size: {Typography.SIZE_SMALL}px;
+                font-size: 11px;
                 background: transparent;
             }}
-            QLineEdit, QTextEdit {{
+            QLineEdit, QTextEdit, QComboBox {{
                 background-color: #fafafa;
                 border: 1px solid {ColorPalette.BORDER_LIGHT};
-                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
-                padding: {Spacing.PADDING_SMALL}px {Spacing.PADDING_MEDIUM}px;
-                font-size: {Typography.SIZE_SMALL}px;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 12px;
+                min-height: 26px;
             }}
-            QLineEdit:focus, QTextEdit:focus {{
+            QLineEdit:focus, QTextEdit:focus, QComboBox:focus {{
                 border: 2px solid {ColorPalette.ACCENT_PRIMARY};
                 background-color: #ffffff;
             }}
+            QLineEdit:read-only {{
+                background-color: #f5f5f5;
+                border: 1px solid #e8e8e8;
+                color: #666;
+                padding: 4px 8px;
+                min-height: 22px;
+                font-size: 11px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
             QTextEdit {{
-                min-height: 80px;
+                min-height: 60px;
+            }}
+            QListWidget {{
+                background-color: #fafafa;
+                border: 1px solid {ColorPalette.BORDER_LIGHT};
+                border-radius: 4px;
+                font-size: 11px;
+                padding: 2px;
+            }}
+            QListWidget::item {{
+                padding: 4px;
+                border-radius: 3px;
+            }}
+            QListWidget::item:hover {{
+                background-color: #e8f4f0;
+            }}
+            QListWidget::item:selected {{
+                background-color: {ColorPalette.ACCENT_PRIMARY};
+                color: white;
             }}
             QDialogButtonBox QPushButton {{
                 background-color: {ColorPalette.ACCENT_PRIMARY};
                 color: white;
                 border: none;
-                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
-                padding: {Spacing.PADDING_SMALL}px 18px;
-                font-weight: {Typography.WEIGHT_SEMIBOLD};
+                border-radius: 5px;
+                padding: 8px 18px;
+                font-weight: 600;
                 min-width: 75px;
+                font-size: 12px;
             }}
             QDialogButtonBox QPushButton:hover {{
                 opacity: 0.9;
@@ -68,59 +105,113 @@ class SparePartDialog(QDialog):
         """)
         
         layout = QVBoxLayout()
-        layout.setSpacing(Spacing.MARGIN_LARGE)
-        layout.setContentsMargins(Spacing.PADDING_XL, Spacing.PADDING_XL, Spacing.PADDING_XL, Spacing.PADDING_XL)
+        layout.setSpacing(8)
+        layout.setContentsMargins(18, 16, 18, 16)
         
         # Title
         title = QLabel("🔧 Spare Part Details")
-        title.setFont(QFont("Segoe UI", 15, QFont.Bold))
-        title.setStyleSheet("color: #1a1a1a; padding-bottom: 6px;")
+        title.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        title.setStyleSheet("color: #1a1a1a; padding-bottom: 2px; font-size: 14px;")
         layout.addWidget(title)
         
+        # Search section (no label)
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Type to search by ID Code, Description, Category...")
+        self.search_input.textChanged.connect(self.filter_spare_parts)
+        layout.addWidget(self.search_input)
+        
+        # Search results list
+        self.search_results = QListWidget()
+        self.search_results.setMaximumHeight(120)
+        self.search_results.itemClicked.connect(self.on_part_selected)
+        layout.addWidget(self.search_results)
+        
+        # Separator
+        separator = QLabel("─" * 50)
+        separator.setStyleSheet("color: #ddd; font-size: 8px; margin: 2px 0px;")
+        layout.addWidget(separator)
+        
+        # Form section
+        form_label = QLabel("📋 Part Details:")
+        form_label.setStyleSheet("font-size: 11px; color: #666; font-weight: 600; margin-top: 2px;")
+        layout.addWidget(form_label)
+        
         form_layout = QGridLayout()
-        form_layout.setSpacing(10)
-        form_layout.setVerticalSpacing(14)
+        form_layout.setSpacing(8)
+        form_layout.setVerticalSpacing(8)
+        form_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText("e.g., Oil Filter - Mann W610/3")
+        # ID Code (read-only from DB)
+        self.id_code_input = QLineEdit()
+        self.id_code_input.setPlaceholderText("Auto-filled from database")
+        self.id_code_input.setReadOnly(True)
         
-        self.ref_no_input = QLineEdit()
-        self.ref_no_input.setPlaceholderText("e.g., INV-2024-001")
+        # Description (read-only from DB)
+        self.description_input = QLineEdit()
+        self.description_input.setPlaceholderText("Auto-filled from database")
+        self.description_input.setReadOnly(True)
         
+        # Category info (read-only from DB)
+        self.category_input = QLineEdit()
+        self.category_input.setPlaceholderText("Auto-filled from database")
+        self.category_input.setReadOnly(True)
+        
+        # Quantity
         self.quantity_input = QLineEdit()
         self.quantity_input.setPlaceholderText("e.g., 2")
         self.quantity_input.textChanged.connect(self.calculate_total)
         
+        # Unit (read-only from DB)
         self.unit_input = QLineEdit()
-        self.unit_input.setPlaceholderText("e.g., pcs, liters, kg")
+        self.unit_input.setPlaceholderText("Auto-filled from database")
+        self.unit_input.setReadOnly(True)
         
+        # Unit Price
         self.unit_price_input = QLineEdit()
         self.unit_price_input.setPlaceholderText("e.g., 1500.00")
         self.unit_price_input.textChanged.connect(self.calculate_total)
         
+        # Total (calculated)
         self.total_input = QLineEdit()
         self.total_input.setReadOnly(True)
         self.total_input.setPlaceholderText("Auto-calculated")
         
-        form_layout.addWidget(QLabel("Description:"), 0, 0)
-        form_layout.addWidget(self.description_input, 0, 1)
+        # Remark
+        self.remark_input = QLineEdit()
+        self.remark_input.setPlaceholderText("e.g., Notes or additional information")
         
-        form_layout.addWidget(QLabel("Reference No:"), 1, 0)
-        form_layout.addWidget(self.ref_no_input, 1, 1)
+        # Create compact labels
+        def create_compact_label(text):
+            lbl = QLabel(text)
+            lbl.setStyleSheet("font-size: 11px; color: #555;")
+            return lbl
         
-        form_layout.addWidget(QLabel("Quantity:"), 2, 0)
-        form_layout.addWidget(self.quantity_input, 2, 1)
+        form_layout.addWidget(create_compact_label("ID Code:"), 0, 0)
+        form_layout.addWidget(self.id_code_input, 0, 1)
         
-        form_layout.addWidget(QLabel("Unit:"), 3, 0)
-        form_layout.addWidget(self.unit_input, 3, 1)
+        form_layout.addWidget(create_compact_label("Description:"), 1, 0)
+        form_layout.addWidget(self.description_input, 1, 1)
         
-        form_layout.addWidget(QLabel("Unit Price:"), 4, 0)
-        form_layout.addWidget(self.unit_price_input, 4, 1)
+        form_layout.addWidget(create_compact_label("Category:"), 2, 0)
+        form_layout.addWidget(self.category_input, 2, 1)
         
-        form_layout.addWidget(QLabel("Total:"), 5, 0)
-        form_layout.addWidget(self.total_input, 5, 1)
+        form_layout.addWidget(create_compact_label("Quantity:"), 3, 0)
+        form_layout.addWidget(self.quantity_input, 3, 1)
+        
+        form_layout.addWidget(create_compact_label("Unit:"), 4, 0)
+        form_layout.addWidget(self.unit_input, 4, 1)
+        
+        form_layout.addWidget(create_compact_label("Unit Price (Rs):"), 5, 0)
+        form_layout.addWidget(self.unit_price_input, 5, 1)
+        
+        form_layout.addWidget(create_compact_label("Total:"), 6, 0)
+        form_layout.addWidget(self.total_input, 6, 1)
+        
+        form_layout.addWidget(create_compact_label("Remark:"), 7, 0)
+        form_layout.addWidget(self.remark_input, 7, 1)
         
         layout.addLayout(form_layout)
+        layout.addSpacing(4)
         
         # Buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -132,12 +223,81 @@ class SparePartDialog(QDialog):
         
         # If editing, populate fields
         if edit_data:
-            self.description_input.setPlainText(edit_data.get('description', ''))
-            self.ref_no_input.setText(edit_data.get('ref_no', ''))
+            self.id_code_input.setText(edit_data.get('id_code', ''))
+            self.description_input.setText(edit_data.get('description', ''))
+            self.category_input.setText(edit_data.get('category', ''))
             self.quantity_input.setText(edit_data.get('quantity', ''))
             self.unit_input.setText(edit_data.get('unit', ''))
             self.unit_price_input.setText(edit_data.get('unit_price', ''))
             self.total_input.setText(edit_data.get('total', ''))
+            self.remark_input.setText(edit_data.get('remark', ''))
+        else:
+            # Show all parts initially
+            self.filter_spare_parts()
+    
+    def load_spare_parts_db(self):
+        """Load all spare parts from database"""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT id_code, item_description, main_category, sub_category, uom FROM spare_parts ORDER BY id_code")
+            for row in c.fetchall():
+                id_code, description, main_cat, sub_cat, uom = row
+                category = f"{main_cat} > {sub_cat}" if sub_cat else main_cat
+                self.spare_parts_db[id_code] = {
+                    'description': description,
+                    'category': category,
+                    'uom': uom,
+                    'main_category': main_cat,
+                    'sub_category': sub_cat
+                }
+            conn.close()
+        except Exception as e:
+            print(f"Error loading spare parts: {e}")
+    
+    def filter_spare_parts(self):
+        """Filter spare parts based on search input"""
+        search_text = self.search_input.text().strip().lower()
+        self.search_results.clear()
+        
+        if not search_text:
+            # Show first 50 items when no search
+            count = 0
+            for id_code, data in sorted(self.spare_parts_db.items()):
+                if count >= 50:
+                    break
+                item_text = f"{id_code} - {data['description']} ({data['category']})"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, id_code)
+                self.search_results.addItem(item)
+                count += 1
+            return
+        
+        # Search in ID code, description, and category
+        count = 0
+        for id_code, data in sorted(self.spare_parts_db.items()):
+            if count >= 100:  # Limit results
+                break
+            if (search_text in id_code.lower() or 
+                search_text in data['description'].lower() or 
+                search_text in data['category'].lower()):
+                item_text = f"{id_code} - {data['description']} ({data['category']})"
+                item = QListWidgetItem(item_text)
+                item.setData(Qt.UserRole, id_code)
+                self.search_results.addItem(item)
+                count += 1
+    
+    def on_part_selected(self, item):
+        """Auto-fill fields when a part is selected from search results"""
+        id_code = item.data(Qt.UserRole)
+        if id_code in self.spare_parts_db:
+            part_data = self.spare_parts_db[id_code]
+            self.id_code_input.setText(id_code)
+            self.description_input.setText(part_data['description'])
+            self.category_input.setText(part_data['category'])
+            self.unit_input.setText(part_data['uom'])
+            # Focus on quantity for easy data entry
+            self.quantity_input.setFocus()
     
     def calculate_total(self):
         try:
@@ -150,12 +310,14 @@ class SparePartDialog(QDialog):
     
     def get_data(self):
         return {
-            'description': self.description_input.toPlainText().strip(),
-            'ref_no': self.ref_no_input.text().strip(),
+            'id_code': self.id_code_input.text().strip(),
+            'description': self.description_input.text().strip(),
+            'category': self.category_input.text().strip(),
             'quantity': self.quantity_input.text().strip(),
             'unit': self.unit_input.text().strip(),
             'unit_price': self.unit_price_input.text().strip(),
-            'total': self.total_input.text().strip()
+            'total': self.total_input.text().strip(),
+            'remark': self.remark_input.text().strip()
         }
 
 
@@ -1025,10 +1187,11 @@ class JobCardPage(QWidget):
         
         # Spare parts table
         self.spare_table = QTableWidget()
-        self.spare_table.setColumnCount(6)
-        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Total"])
+        self.spare_table.setColumnCount(7)
+        self.spare_table.setHorizontalHeaderLabels(["#", "ID Code", "Description", "Quantity", "Unit", "Total", "Remark"])
         self.spare_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.spare_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.spare_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.spare_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self.spare_table.setMinimumHeight(180)
         self.spare_table.setMaximumHeight(260)
         self.spare_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -1584,18 +1747,19 @@ class JobCardPage(QWidget):
 
     def refresh_spare_table(self):
         self.spare_table.setRowCount(len(self.spare_parts_data))
-        self.spare_table.setColumnCount(6)
-        self.spare_table.setHorizontalHeaderLabels(["#", "Description", "Ref No", "Quantity", "Unit", "Total"])
+        self.spare_table.setColumnCount(7)
+        self.spare_table.setHorizontalHeaderLabels(["#", "ID Code", "Description", "Quantity", "Unit", "Total", "Remark"])
         
         spare_total = 0.0
         
         for row_idx, part in enumerate(self.spare_parts_data):
             self.spare_table.setItem(row_idx, 0, QTableWidgetItem(str(row_idx + 1)))
-            self.spare_table.setItem(row_idx, 1, QTableWidgetItem(part.get('description', '')))
-            self.spare_table.setItem(row_idx, 2, QTableWidgetItem(part.get('ref_no', '')))
+            self.spare_table.setItem(row_idx, 1, QTableWidgetItem(part.get('id_code', '')))
+            self.spare_table.setItem(row_idx, 2, QTableWidgetItem(part.get('description', '')))
             self.spare_table.setItem(row_idx, 3, QTableWidgetItem(part.get('quantity', '')))
             self.spare_table.setItem(row_idx, 4, QTableWidgetItem(part.get('unit', '')))
             self.spare_table.setItem(row_idx, 5, QTableWidgetItem(part.get('total', '')))
+            self.spare_table.setItem(row_idx, 6, QTableWidgetItem(part.get('remark', '')))
             
             try:
                 total = float(part.get('total', 0))
@@ -1828,6 +1992,7 @@ class JobCardPage(QWidget):
         self.update_grand_totals()
 
     def save_job_card(self):
+        """Save job card with status defaulting to 'In Progress'"""
         job_no = self.job_no_input.text().strip()
         company_no = self.company_no_input.text().strip()
         driver_name = self.driver_input.text().strip()
@@ -1860,8 +2025,8 @@ class JobCardPage(QWidget):
             cur.execute("""
                 INSERT INTO job_cards (
                     job_no, company_no, vehicle_no, driver, make, model, type,
-                    site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 job_no,
                 company_no,
@@ -1878,7 +2043,8 @@ class JobCardPage(QWidget):
                 self.desc_input.toPlainText(),
                 spare_parts_json,
                 labour_works_json,
-                outsource_works_json
+                outsource_works_json,
+                'In Progress'  # Default status for new job cards
             ))
             self.conn.commit()
 

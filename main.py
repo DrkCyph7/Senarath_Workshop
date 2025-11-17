@@ -111,13 +111,22 @@ def setup_database() -> bool:
                 description TEXT,
                 spare_parts TEXT,
                 labour_works TEXT,
-                outsource_works TEXT
+                outsource_works TEXT,
+                status TEXT DEFAULT 'In Progress'
             )'''
         }
         
         # Create all tables
         for table_name, sql in tables.items():
             c.execute(sql)
+        
+        # Add status column to job_cards if it doesn't exist (migration)
+        try:
+            c.execute("SELECT status FROM job_cards LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info("Adding status column to job_cards table...")
+            c.execute("ALTER TABLE job_cards ADD COLUMN status TEXT DEFAULT 'In Progress'")
+            logger.info("✅ Status column added successfully!")
         
         # Insert sample data if tables are empty
         _insert_sample_data(c)

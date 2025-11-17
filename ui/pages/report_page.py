@@ -1,381 +1,347 @@
+"""
+Advanced Analytics & Reporting Module
+Provides comprehensive insights into workshop operations with export capabilities
+"""
 import sqlite3
 import csv
 import json
-from datetime import datetime, timedelta
+import datetime
+from collections import defaultdict
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QCheckBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QMessageBox, QComboBox, QDateEdit,
-    QFrame, QFileDialog, QSpinBox, QGridLayout, QTextEdit,
-    QDialog, QListWidget, QListWidgetItem, QScrollArea
+    QFrame, QFileDialog, QHeaderView, QTabWidget, QGridLayout
 )
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QFont, QTransform
+from PySide6.QtGui import QFont
 from ui.theme import ColorPalette, Typography, Spacing, Styles, create_page_header
 
 DB_PATH = "ui/db/senarath.db"
 
+# Check for optional libraries
+try:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+
+try:
+    import openpyxl
+    from openpyxl.styles import Font as XLFont, Alignment, PatternFill, Border, Side
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
 
 class ReportPage(QWidget):
+    """Advanced analytics dashboard with comprehensive reporting capabilities"""
+    
     def __init__(self, parent=None):
         super().__init__()
         self.parent = parent
-        self.current_table = "job_cards"
-        self.visible_columns = None
-        self.zoom_level = 100  # Default zoom level
+        self.current_report_data = None
         
-        # === UI Colors ===
-        bg_color = "#f5f5f5"
-        card_color = "#ffffff"
-        accent_color = "#2d7a5f"
-        text_color = "#2c2c2c"
-        border_color = "#e0e0e0"
-        
+        bg_color = "#f5f5f0"
+        card_color = ColorPalette.CARD_BG
+        accent_color = ColorPalette.ACCENT_PRIMARY
+        text_primary = "#2c2c2c"
+        text_secondary = ColorPalette.TEXT_SECONDARY
+        border_color = "#d4d4d4"
+
         self.setStyleSheet(f"""
             QWidget {{
                 background-color: {bg_color};
-                color: {text_color};
                 font-family: 'Segoe UI', Arial;
-                font-size: 12px;
+                color: {text_primary};
             }}
-            QLabel {{
-                background-color: transparent;
-            }}
-            QLabel#title {{
-                font-size: 26px;
-                font-weight: 700;
-                color: #1a1a1a;
-            }}
-            QFrame#card {{
+            QFrame#stat_card {{
                 background-color: {card_color};
-                border-radius: 6px;
-                border: none;
+                border: 1px solid {border_color};
+                border-radius: {Spacing.BORDER_RADIUS_MEDIUM}px;
             }}
-            QPushButton {{
-                background-color: {accent_color};
-                border-radius: 5px;
-                padding: 6px 14px;
-                color: white;
-                font-weight: 600;
-                border: none;
+            QFrame#filter_card {{
+                background-color: {card_color};
+                border: 1px solid {border_color};
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+            }}
+            QLabel#stat_value {{
+                color: {accent_color};
+                font-size: 24px;
+                font-weight: 700;
+            }}
+            QLabel#stat_label {{
+                color: {text_secondary};
                 font-size: 11px;
+                font-weight: 600;
                 text-transform: uppercase;
-                letter-spacing: 0.2px;
             }}
-            QPushButton:hover {{
-                background-color: #246651;
+            QLabel#section_title {{
+                color: {text_primary};
+                font-size: 14px;
+                font-weight: 700;
             }}
-            QPushButton:pressed {{
-                background-color: #1f5443;
-            }}
-            QPushButton#secondary {{
-                background-color: #8b6f47;
-            }}
-            QPushButton#secondary:hover {{
-                background-color: #735a38;
-            }}
-            QPushButton#ghost {{
-                background-color: transparent;
-                color: #555;
-                border: 1px solid #ccc;
-                text-transform: none;
-                letter-spacing: 0px;
-                font-weight: 500;
-            }}
-            QPushButton#ghost:hover {{
-                background-color: #f5f5f5;
-                border-color: #999;
-            }}
-            QComboBox, QDateEdit, QSpinBox {{
+            QComboBox, QDateEdit {{
                 background-color: #fafafa;
                 border: 1px solid {border_color};
-                border-radius: 4px;
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
                 padding: 6px 8px;
-                font-size: 11px;
+                font-size: 12px;
+                min-height: 24px;
+                color: {text_primary};
             }}
-            QComboBox:focus, QDateEdit:focus, QSpinBox:focus {{
+            QComboBox:focus, QDateEdit:focus {{
                 border: 2px solid {accent_color};
-                background-color: #ffffff;
+                background-color: white;
             }}
             QTableWidget {{
                 background-color: {card_color};
                 border: 1px solid {border_color};
-                color: {text_color};
-                gridline-color: #f0f0f0;
-                border-radius: 4px;
-                font-size: 10px;
-                alternate-background-color: #fafafa;
-            }}
-            QTableWidget::item {{
-                padding: 4px;
-                border: none;
-            }}
-            QTableWidget::item:selected {{
-                background-color: #d4f1eb;
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                gridline-color: {border_color};
+                alternate-background-color: #f8f8f3;
+                font-size: 11px;
             }}
             QHeaderView::section {{
                 background-color: {accent_color};
                 color: white;
-                padding: 6px 4px;
+                padding: 8px;
                 border: none;
-                font-weight: 700;
-                font-size: 9px;
-                text-transform: uppercase;
+                font-weight: 600;
+                font-size: 11px;
+            }}
+            QTableWidget::item {{
+                padding: 4px;
+                color: {text_primary};
+            }}
+            QTableWidget::item:selected {{
+                background-color: rgba(45, 122, 95, 0.18);
+            }}
+            QTabWidget::pane {{
+                border: 1px solid {border_color};
+                border-radius: {Spacing.BORDER_RADIUS_SMALL}px;
+                background-color: {card_color};
+            }}
+            QTabBar::tab {{
+                background-color: transparent;
+                padding: 8px 16px;
+                font-weight: 600;
+                color: {text_secondary};
+                border: none;
+            }}
+            QTabBar::tab:selected {{
+                color: {accent_color};
+                border-bottom: 3px solid {accent_color};
             }}
         """)
         
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(18, 14, 18, 14)
-        main_layout.setSpacing(10)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(16)
         
-        # === Header ===
-        header_layout, title_label, back_btn = create_page_header("📊 Job Cards Report")
+        # Header
+        header_layout, title_label, back_btn = create_page_header("📊 Analytics & Reports")
         back_btn.clicked.connect(self.go_back)
         main_layout.addLayout(header_layout)
         
-        # === Quick Actions & Shortcuts ===
-        action_bar = QFrame()
-        action_bar.setObjectName("card")
-        action_layout = QHBoxLayout(action_bar)
-        action_layout.setContentsMargins(10, 8, 10, 8)
-        action_layout.setSpacing(7)
-        
-        # Shortcuts
-        this_week_btn = QPushButton("This Week")
-        this_week_btn.setMaximumWidth(100)
-        this_week_btn.setFixedHeight(28)
-        this_week_btn.setObjectName("ghost")
-        this_week_btn.clicked.connect(self.filter_this_week)
-        
-        this_month_btn = QPushButton("This Month")
-        this_month_btn.setMaximumWidth(110)
-        this_month_btn.setFixedHeight(28)
-        this_month_btn.setObjectName("ghost")
-        this_month_btn.clicked.connect(self.filter_this_month)
-        
-        action_layout.addWidget(this_week_btn)
-        action_layout.addWidget(this_month_btn)
-        
-        action_layout.addSpacing(12)
-        
-        # Quick Actions
-        self.columns_btn = QPushButton("Columns")
-        self.columns_btn.setMaximumWidth(85)
-        self.columns_btn.setFixedHeight(28)
-        self.columns_btn.setObjectName("ghost")
-        self.columns_btn.clicked.connect(self.show_column_selector)
-        
-        self.preview_btn = QPushButton("Preview")
-        self.preview_btn.setMaximumWidth(90)
-        self.preview_btn.setFixedHeight(28)
-        self.preview_btn.clicked.connect(self.preview_data)
-        
-        self.export_csv_btn = QPushButton("Export")
-        self.export_csv_btn.setMaximumWidth(85)
-        self.export_csv_btn.setFixedHeight(28)
-        self.export_csv_btn.setObjectName("secondary")
-        self.export_csv_btn.clicked.connect(self.export_to_csv)
-        
-        action_layout.addStretch()
-        
-        # Zoom controls
-        zoom_out_btn = QPushButton("🔍−")
-        zoom_out_btn.setMaximumWidth(50)
-        zoom_out_btn.setFixedHeight(28)
-        zoom_out_btn.setObjectName("ghost")
-        zoom_out_btn.setToolTip("Zoom Out")
-        zoom_out_btn.clicked.connect(self.zoom_out_table)
-        
-        self.zoom_label = QLabel("100%")
-        self.zoom_label.setAlignment(Qt.AlignCenter)
-        self.zoom_label.setMaximumWidth(45)
-        self.zoom_label.setStyleSheet("font-weight: 600; font-size: 10px;")
-        
-        zoom_in_btn = QPushButton("🔍+")
-        zoom_in_btn.setMaximumWidth(50)
-        zoom_in_btn.setFixedHeight(28)
-        zoom_in_btn.setObjectName("ghost")
-        zoom_in_btn.setToolTip("Zoom In")
-        zoom_in_btn.clicked.connect(self.zoom_in_table)
-        
-        action_layout.addWidget(zoom_out_btn)
-        action_layout.addWidget(self.zoom_label)
-        action_layout.addWidget(zoom_in_btn)
-        
-        action_layout.addWidget(self.columns_btn)
-        action_layout.addWidget(self.preview_btn)
-        action_layout.addWidget(self.export_csv_btn)
-        
-        main_layout.addWidget(action_bar)
-        
-        # === Advanced Filters Panel ===
-        filter_card = QFrame()
-        filter_card.setObjectName("card")
-        filter_layout = QVBoxLayout(filter_card)
-        filter_layout.setContentsMargins(10, 10, 10, 10)
+        # Filter Panel
+        filter_frame = QFrame()
+        filter_frame.setObjectName("filter_card")
+        filter_layout = QVBoxLayout(filter_frame)
+        filter_layout.setContentsMargins(16, 14, 16, 14)
         filter_layout.setSpacing(8)
         
-        # Row 1: Date Range & Driver
-        row1_layout = QHBoxLayout()
-        row1_layout.setSpacing(8)
+        filter_title = QLabel("Report Filters")
+        filter_title.setObjectName("section_title")
+        filter_layout.addWidget(filter_title)
         
-        date_label = QLabel("Date:")
-        date_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        date_label.setMaximumWidth(30)
-        row1_layout.addWidget(date_label)
-        
+        # Filter controls laid out on compact grid
+        controls_grid = QGridLayout()
+        controls_grid.setContentsMargins(0, 0, 0, 0)
+        controls_grid.setHorizontalSpacing(12)
+        controls_grid.setVerticalSpacing(8)
+
+        def _add_filter(label_text: str, widget, row: int, col: int):
+            label = QLabel(label_text)
+            label.setStyleSheet(f"color: {text_secondary}; font-size: 11px; font-weight: 600;")
+            controls_grid.addWidget(label, row, col)
+            controls_grid.addWidget(widget, row, col + 1)
+
+        self.period_combo = QComboBox()
+        self.period_combo.addItems(["Last 7 Days", "Last 30 Days", "Last 3 Months", "Last 6 Months", "This Year", "Custom Range"])
+        self.period_combo.setMinimumWidth(140)
+        self.period_combo.currentTextChanged.connect(self.on_period_changed)
+        _add_filter("Period", self.period_combo, 0, 0)
+
+        date_row = 0
         self.from_date = QDateEdit()
         self.from_date.setCalendarPopup(True)
         self.from_date.setDisplayFormat("yyyy-MM-dd")
         self.from_date.setDate(QDate.currentDate().addDays(-30))
-        self.from_date.setMaximumWidth(110)
-        self.from_date.setFixedHeight(26)
-        row1_layout.addWidget(self.from_date)
-        
-        to_label = QLabel("to")
-        to_label.setStyleSheet("font-weight: 500; color: #999; font-size: 9px;")
-        to_label.setMaximumWidth(20)
-        row1_layout.addWidget(to_label)
-        
+        self.from_date.setEnabled(False)
+        self.from_date.setMinimumWidth(130)
+        _add_filter("From", self.from_date, date_row, 2)
+
         self.to_date = QDateEdit()
         self.to_date.setCalendarPopup(True)
         self.to_date.setDisplayFormat("yyyy-MM-dd")
         self.to_date.setDate(QDate.currentDate())
-        self.to_date.setMaximumWidth(110)
-        self.to_date.setFixedHeight(26)
-        row1_layout.addWidget(self.to_date)
-        
-        driver_label = QLabel("Driver:")
-        driver_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        driver_label.setMaximumWidth(40)
-        row1_layout.addWidget(driver_label)
-        
-        self.driver_filter = QComboBox()
-        self.driver_filter.addItem("All")
-        self.load_drivers()
-        self.driver_filter.setMaximumWidth(110)
-        self.driver_filter.setFixedHeight(26)
-        row1_layout.addWidget(self.driver_filter)
-        
-        row1_layout.addStretch()
-        filter_layout.addLayout(row1_layout)
-        
-        # Row 2: Site, Vehicle, Status, Rows, Reset
-        row2_layout = QHBoxLayout()
-        row2_layout.setSpacing(8)
-        
-        site_label = QLabel("Site:")
-        site_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        site_label.setMaximumWidth(30)
-        row2_layout.addWidget(site_label)
-        
+        self.to_date.setEnabled(False)
+        self.to_date.setMinimumWidth(130)
+        _add_filter("To", self.to_date, date_row, 4)
+
         self.site_filter = QComboBox()
-        self.site_filter.addItem("All")
+        self.site_filter.addItem("All Sites")
         self.load_sites()
-        self.site_filter.setMaximumWidth(110)
-        self.site_filter.setFixedHeight(26)
-        row2_layout.addWidget(self.site_filter)
-        
-        vehicle_label = QLabel("Vehicle:")
-        vehicle_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        vehicle_label.setMaximumWidth(50)
-        row2_layout.addWidget(vehicle_label)
-        
-        self.vehicle_filter = QComboBox()
-        self.vehicle_filter.addItem("All")
-        self.load_vehicles()
-        self.vehicle_filter.setMaximumWidth(110)
-        self.vehicle_filter.setFixedHeight(26)
-        row2_layout.addWidget(self.vehicle_filter)
-        
-        # Advanced: Job Status Filter
-        status_label = QLabel("Status:")
-        status_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        status_label.setMaximumWidth(40)
-        row2_layout.addWidget(status_label)
-        
+        self.site_filter.setMinimumWidth(150)
+        _add_filter("Site", self.site_filter, 1, 0)
+
         self.status_filter = QComboBox()
-        self.status_filter.addItems(["All", "Completed", "In Progress", "Pending"])
-        self.status_filter.setMaximumWidth(100)
-        self.status_filter.setFixedHeight(26)
-        row2_layout.addWidget(self.status_filter)
+        self.status_filter.addItems(["All Status", "Completed", "In Progress"])
+        self.status_filter.setMinimumWidth(130)
+        _add_filter("Status", self.status_filter, 1, 2)
+
+        # Generate button aligned to the right column spanning rows
+        generate_btn = QPushButton("Generate")
+        generate_btn.setStyleSheet(Styles.get_button_primary())
+        generate_btn.setFixedHeight(28)
+        generate_btn.setCursor(Qt.PointingHandCursor)
+        generate_btn.clicked.connect(self.generate_report)
+        controls_grid.addWidget(generate_btn, 0, 6, 2, 1, alignment=Qt.AlignRight | Qt.AlignVCenter)
+
+        # Spacer to keep grid compact but responsive
+        controls_grid.setColumnStretch(5, 1)
+        controls_grid.setColumnStretch(6, 0)
+
+        filter_layout.addLayout(controls_grid)
+        main_layout.addWidget(filter_frame)
         
-        # Sort: Job Card Number
-        sort_label = QLabel("Sort:")
-        sort_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        sort_label.setMaximumWidth(35)
-        row2_layout.addWidget(sort_label)
+        # Stats Cards
+        self.stats_container = QHBoxLayout()
+        self.stats_container.setSpacing(12)
+        main_layout.addLayout(self.stats_container)
         
-        self.sort_filter = QComboBox()
-        self.sort_filter.addItems(["Smallest to Highest", "Highest to Smallest"])
-        self.sort_filter.setMaximumWidth(140)
-        self.sort_filter.setFixedHeight(26)
-        row2_layout.addWidget(self.sort_filter)
+        # Tabs for different report views
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self._create_overview_tab(), "📈 Overview")
+        self.tabs.addTab(self._create_spare_parts_tab(), "🔧 Spare Parts Analysis")
+        self.tabs.addTab(self._create_vehicle_tab(), "🚗 Vehicle Analysis")
+        self.tabs.addTab(self._create_cost_tab(), "💰 Cost Analysis")
+        self.tabs.addTab(self._create_performance_tab(), "⚡ Performance Metrics")
+        main_layout.addWidget(self.tabs, 1)
         
-        rows_label = QLabel("Max Rows:")
-        rows_label.setStyleSheet("font-weight: 600; color: #555; font-size: 10px;")
-        rows_label.setMaximumWidth(60)
-        row2_layout.addWidget(rows_label)
+        # Export buttons
+        export_layout = QHBoxLayout()
+        export_layout.addStretch()
         
-        self.row_limit = QSpinBox()
-        self.row_limit.setMinimum(10)
-        self.row_limit.setMaximum(10000)
-        self.row_limit.setValue(500)
-        self.row_limit.setSingleStep(100)
-        self.row_limit.setMaximumWidth(75)
-        self.row_limit.setFixedHeight(26)
-        row2_layout.addWidget(self.row_limit)
+        csv_btn = QPushButton("📄 Export CSV")
+        csv_btn.setStyleSheet(Styles.get_button_secondary())
+        csv_btn.setFixedHeight(28)
+        csv_btn.setCursor(Qt.PointingHandCursor)
+        csv_btn.clicked.connect(self.export_csv)
+        export_layout.addWidget(csv_btn)
         
-        row2_layout.addStretch()
+        if HAS_OPENPYXL:
+            xlsx_btn = QPushButton("📊 Export Excel")
+            xlsx_btn.setStyleSheet(Styles.get_button_secondary())
+            xlsx_btn.setFixedHeight(28)
+            xlsx_btn.setCursor(Qt.PointingHandCursor)
+            xlsx_btn.clicked.connect(self.export_xlsx)
+            export_layout.addWidget(xlsx_btn)
         
-        reset_btn = QPushButton("Reset")
-        reset_btn.setObjectName("ghost")
-        reset_btn.setMaximumWidth(75)
-        reset_btn.setFixedHeight(26)
-        reset_btn.clicked.connect(self.reset_filters)
-        row2_layout.addWidget(reset_btn)
+        if HAS_REPORTLAB:
+            pdf_btn = QPushButton("📑 Export PDF")
+            pdf_btn.setStyleSheet(Styles.get_button_secondary())
+            pdf_btn.setFixedHeight(28)
+            pdf_btn.setCursor(Qt.PointingHandCursor)
+            pdf_btn.clicked.connect(self.export_pdf)
+            export_layout.addWidget(pdf_btn)
         
-        filter_layout.addLayout(row2_layout)
+        main_layout.addLayout(export_layout)
         
-        main_layout.addWidget(filter_card)
-        
-        # === Data Table (Main Preview) ===
-        data_card = QFrame()
-        data_card.setObjectName("card")
-        data_layout = QVBoxLayout(data_card)
-        data_layout.setContentsMargins(0, 0, 0, 0)
-        data_layout.setSpacing(0)
-        
-        self.table = QTableWidget()
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setAlternatingRowColors(True)
-        data_layout.addWidget(self.table)
-        
-        main_layout.addWidget(data_card, 1)
-        
-        self.setLayout(main_layout)
-        
-        # Initial setup
-        self.select_report_type("job_cards")
+        # Initial data load
+        self.generate_report()
     
-    def go_back(self):
-        """Navigate back to home page"""
-        if self.parent:
-            self.parent.go_to_home()
+    def _create_overview_tab(self):
+        """Overview statistics and summary"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        
+        self.overview_table = QTableWidget()
+        self.overview_table.setAlternatingRowColors(True)
+        self.overview_table.verticalHeader().setVisible(False)
+        self.overview_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.overview_table.setSelectionMode(QTableWidget.NoSelection)
+        layout.addWidget(self.overview_table)
+        
+        return tab
     
-    def load_drivers(self):
-        """Load drivers from database"""
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("SELECT DISTINCT name FROM drivers ORDER BY name")
-            drivers = c.fetchall()
-            conn.close()
-            
-            for driver in drivers:
-                self.driver_filter.addItem(driver[0])
-        except Exception as e:
-            print(f"Error loading drivers: {e}")
+    def _create_spare_parts_tab(self):
+        """Spare parts usage analysis"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        
+        self.spare_parts_table = QTableWidget()
+        self.spare_parts_table.setAlternatingRowColors(True)
+        self.spare_parts_table.verticalHeader().setVisible(False)
+        self.spare_parts_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        layout.addWidget(self.spare_parts_table)
+        
+        return tab
+    
+    def _create_vehicle_tab(self):
+        """Vehicle-specific analysis"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        
+        self.vehicle_table = QTableWidget()
+        self.vehicle_table.setAlternatingRowColors(True)
+        self.vehicle_table.verticalHeader().setVisible(False)
+        self.vehicle_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        layout.addWidget(self.vehicle_table)
+        
+        return tab
+    
+    def _create_cost_tab(self):
+        """Cost breakdown and analysis"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        
+        self.cost_table = QTableWidget()
+        self.cost_table.setAlternatingRowColors(True)
+        self.cost_table.verticalHeader().setVisible(False)
+        self.cost_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        layout.addWidget(self.cost_table)
+        
+        return tab
+    
+    def _create_performance_tab(self):
+        """Performance metrics and KPIs"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+        
+        self.performance_table = QTableWidget()
+        self.performance_table.setAlternatingRowColors(True)
+        self.performance_table.verticalHeader().setVisible(False)
+        self.performance_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        layout.addWidget(self.performance_table)
+        
+        return tab
     
     def load_sites(self):
         """Load sites from database"""
@@ -385,465 +351,581 @@ class ReportPage(QWidget):
             c.execute("SELECT DISTINCT name FROM sites ORDER BY name")
             sites = c.fetchall()
             conn.close()
-            
             for site in sites:
                 self.site_filter.addItem(site[0])
         except Exception as e:
             print(f"Error loading sites: {e}")
     
-    def load_vehicles(self):
-        """Load vehicles from database"""
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("SELECT DISTINCT number FROM vehicles ORDER BY number")
-            vehicles = c.fetchall()
-            conn.close()
-            
-            for vehicle in vehicles:
-                if vehicle[0] and vehicle[0] != "-":
-                    self.vehicle_filter.addItem(vehicle[0])
-        except Exception as e:
-            print(f"Error loading vehicles: {e}")
+    def on_period_changed(self, period):
+        """Handle period selection changes"""
+        is_custom = period == "Custom Range"
+        self.from_date.setEnabled(is_custom)
+        self.to_date.setEnabled(is_custom)
+        
+        if not is_custom:
+            today = QDate.currentDate()
+            if period == "Last 7 Days":
+                self.from_date.setDate(today.addDays(-7))
+            elif period == "Last 30 Days":
+                self.from_date.setDate(today.addDays(-30))
+            elif period == "Last 3 Months":
+                self.from_date.setDate(today.addMonths(-3))
+            elif period == "Last 6 Months":
+                self.from_date.setDate(today.addMonths(-6))
+            elif period == "This Year":
+                self.from_date.setDate(QDate(today.year(), 1, 1))
+            self.to_date.setDate(today)
     
-    def reset_filters(self):
-        """Reset all filters to default values"""
-        self.from_date.setDate(QDate.currentDate().addDays(-30))
-        self.to_date.setDate(QDate.currentDate())
-        self.driver_filter.setCurrentIndex(0)
-        self.site_filter.setCurrentIndex(0)
-        self.vehicle_filter.setCurrentIndex(0)
-        self.status_filter.setCurrentIndex(0)
-        self.sort_filter.setCurrentIndex(0)  # Reset to "Smallest to Highest"
-        self.row_limit.setValue(500)
-    
-    def filter_this_week(self):
-        """Filter to show this week's records"""
-        today = QDate.currentDate()
-        start = today.addDays(-today.dayOfWeek() + 1)
-        self.from_date.setDate(start)
-        self.to_date.setDate(today)
-    
-    def filter_this_month(self):
-        """Filter to show this month's records"""
-        today = QDate.currentDate()
-        start = QDate(today.year(), today.month(), 1)
-        self.from_date.setDate(start)
-        self.to_date.setDate(today)
-    
-    def select_report_type(self, report_type):
-        """Select report type"""
-        self.current_table = report_type
-        
-        if report_type == "job_cards":
-            self.visible_columns = [
-                "Start Date", "Job No", "Job description", "Driver", "Company No",
-                "Vehicle No", "Make", "Model", "Type", "Site", "Section", "End Date"
-            ]
-        else:
-            self.visible_columns = ["Company No", "Vehicle No", "Make", "Model", "Type"]
-    
-    def show_column_selector(self):
-        """Show column selection dialog"""
-        if self.current_table == "job_cards":
-            categories = {
-                "Basic Info": ["Start Date", "Job No", "Job description", "Driver"],
-                "Company & Vehicle": ["Company No", "Vehicle No", "Make", "Model", "Type"],
-                "Location": ["Site", "Section"],
-                "Dates": ["End Date"],
-                "Spare Parts": ["description", "ref no", "Qty", "Unit", "unit price", "total"]
-            }
-        else:
-            categories = {
-                "Basic Info": ["Company No", "Vehicle No"],
-                "Details": ["Make", "Model", "Type"]
-            }
-        
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Select Columns to Display & Export")
-        dialog.setFixedSize(400, 500)
-        dialog.setStyleSheet(self.styleSheet())
-        
-        layout = QVBoxLayout(dialog)
-        layout.setSpacing(10)
-        layout.setContentsMargins(12, 12, 12, 12)
-        
-        # Header
-        title = QLabel("📊 Customize Report Columns")
-        title.setStyleSheet("font-weight: 700; font-size: 13px; margin-bottom: 5px;")
-        layout.addWidget(title)
-        
-        info_label = QLabel("Select which columns to show in preview and export")
-        info_label.setStyleSheet("font-size: 10px; color: #777;")
-        layout.addWidget(info_label)
-        
-        # Scrollable list
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setSpacing(8)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.column_checkboxes = {}
-        
-        for category, columns in categories.items():
-            cat_label = QLabel(f"▼ {category}")
-            cat_label.setStyleSheet("font-weight: 700; color: #2d7a5f; font-size: 11px; margin-top: 8px;")
-            scroll_layout.addWidget(cat_label)
-            
-            for col in columns:
-                checkbox = QCheckBox(col)
-                checkbox.setCheckState(Qt.Checked if col in self.visible_columns else Qt.Unchecked)
-                checkbox.setStyleSheet("padding: 5px 0px; font-size: 11px;")
-                self.column_checkboxes[col] = checkbox
-                scroll_layout.addWidget(checkbox)
-        
-        scroll_layout.addStretch()
-        scroll.setWidget(scroll_widget)
-        layout.addWidget(scroll)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        
-        select_all_btn = QPushButton("Select All")
-        select_all_btn.setFixedHeight(28)
-        select_all_btn.setObjectName("ghost")
-        select_all_btn.clicked.connect(lambda: self.toggle_all_columns(True))
-        
-        deselect_all_btn = QPushButton("Deselect All")
-        deselect_all_btn.setFixedHeight(28)
-        deselect_all_btn.setObjectName("ghost")
-        deselect_all_btn.clicked.connect(lambda: self.toggle_all_columns(False))
-        
-        btn_layout.addWidget(select_all_btn)
-        btn_layout.addWidget(deselect_all_btn)
-        btn_layout.addStretch()
-        
-        ok_btn = QPushButton("Apply")
-        ok_btn.setFixedHeight(28)
-        ok_btn.setMinimumWidth(80)
-        ok_btn.clicked.connect(lambda: self.apply_columns(dialog))
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedHeight(28)
-        cancel_btn.setMinimumWidth(80)
-        cancel_btn.setObjectName("ghost")
-        cancel_btn.clicked.connect(dialog.reject)
-        
-        btn_layout.addWidget(ok_btn)
-        btn_layout.addWidget(cancel_btn)
-        layout.addLayout(btn_layout)
-        
-        dialog.exec()
-    
-    def toggle_all_columns(self, state):
-        """Toggle all columns on/off"""
-        for checkbox in self.column_checkboxes.values():
-            checkbox.setCheckState(Qt.Checked if state else Qt.Unchecked)
-    
-    def apply_columns(self, dialog):
-        """Apply selected columns"""
-        self.visible_columns = []
-        for col, checkbox in self.column_checkboxes.items():
-            if checkbox.checkState() == Qt.Checked:
-                self.visible_columns.append(col)
-        
-        if not self.visible_columns:
-            QMessageBox.warning(self, "No Columns", "Please select at least one column!")
-            return
-        
-        dialog.accept()
-        self.preview_data()
-    
-    def get_filtered_data(self):
-        """Get filtered data from database with spare parts expanded"""
+    def generate_report(self):
+        """Generate comprehensive analytics report"""
         try:
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             
-            query = """SELECT id, job_no, company_no, vehicle_no, driver, site, section, 
-                              start_date, end_date, make, model, type, hr_km, description, spare_parts
-                       FROM job_cards WHERE 1=1"""
+            # Build query with filters
+            query = """
+                SELECT id, job_no, company_no, vehicle_no, driver, make, model, type,
+                       site, section, start_date, end_date, description, 
+                       spare_parts, labour_works, outsource_works, status
+                FROM job_cards WHERE 1=1
+            """
             params = []
             
-            # Date filter
             from_date = self.from_date.date().toString("yyyy-MM-dd")
             to_date = self.to_date.date().toString("yyyy-MM-dd")
             query += " AND start_date >= ? AND start_date <= ?"
             params.extend([from_date, to_date])
             
-            # Driver filter
-            if self.driver_filter.currentText() != "All":
-                query += " AND driver = ?"
-                params.append(self.driver_filter.currentText())
-            
-            # Site filter
-            if self.site_filter.currentText() != "All":
+            if self.site_filter.currentText() != "All Sites":
                 query += " AND site = ?"
                 params.append(self.site_filter.currentText())
             
-            # Vehicle filter
-            if self.vehicle_filter.currentText() != "All":
-                query += " AND vehicle_no = ?"
-                params.append(self.vehicle_filter.currentText())
+            if self.status_filter.currentText() != "All Status":
+                query += " AND status = ?"
+                params.append(self.status_filter.currentText())
             
-            # Sort by job number
-            sort_option = self.sort_filter.currentText()
-            if sort_option == "Smallest to Highest":
-                query += " ORDER BY job_no ASC LIMIT ?"
-            else:  # Highest to Smallest
-                query += " ORDER BY job_no DESC LIMIT ?"
-            
-            params.append(self.row_limit.value())
+            query += " ORDER BY start_date DESC"
             
             c.execute(query, params)
-            data = c.fetchall()
+            job_cards = c.fetchall()
             conn.close()
             
-            # Expand spare parts data - Reorder to match CSV format
-            # CSV order: Start Date, Job No, Job description, Driver, Company No, Vehicle No, Make, Model, Type, Site, Section, End Date, description, ref no, Qty, Unit, unit price, total
-            expanded_data = []
-            for row in data:
-                # row indices: 0=id, 1=job_no, 2=company_no, 3=vehicle_no, 4=driver, 5=site, 6=section, 7=start_date, 8=end_date, 9=make, 10=model, 11=type, 12=hr_km, 13=description, 14=spare_parts
-                spare_parts_json = row[14] if len(row) > 14 else ""
-                
-                try:
-                    if spare_parts_json:
-                        spare_parts = json.loads(spare_parts_json)
-                        if isinstance(spare_parts, list) and len(spare_parts) > 0:
-                            # Create a row for each spare part - Reordered to CSV format
-                            for idx, part in enumerate(spare_parts):
-                                new_row = [
-                                    row[7],   # Start Date
-                                    row[1],   # Job No
-                                    row[13],  # Job description
-                                    row[4],   # Driver
-                                    row[2],   # Company No
-                                    row[3],   # Vehicle No
-                                    row[9],   # Make
-                                    row[10],  # Model
-                                    row[11],  # Type
-                                    row[5],   # Site
-                                    row[6],   # Section
-                                    row[8],   # End Date
-                                    part.get('description', ''),  # spare part description
-                                    part.get('ref_no', ''),        # ref no
-                                    part.get('quantity', ''),      # Qty
-                                    part.get('unit', ''),          # Unit
-                                    part.get('unit_price', ''),    # unit price
-                                    part.get('total', '')          # total
-                                ]
-                                expanded_data.append(new_row)
-                        else:
-                            new_row = [row[7], row[1], row[13], row[4], row[2], row[3], row[9], row[10], row[11], row[5], row[6], row[8], '', '', '', '', '', '']
-                            expanded_data.append(new_row)
-                    else:
-                        new_row = [row[7], row[1], row[13], row[4], row[2], row[3], row[9], row[10], row[11], row[5], row[6], row[8], '', '', '', '', '', '']
-                        expanded_data.append(new_row)
-                except:
-                    new_row = [row[7], row[1], row[13], row[4], row[2], row[3], row[9], row[10], row[11], row[5], row[6], row[8], '', '', '', '', '', '']
-                    expanded_data.append(new_row)
+            self.current_report_data = job_cards
             
-            return expanded_data
-        
+            # Update all tabs
+            self._update_stats_cards(job_cards)
+            self._update_overview_tab(job_cards)
+            self._update_spare_parts_tab(job_cards)
+            self._update_vehicle_tab(job_cards)
+            self._update_cost_tab(job_cards)
+            self._update_performance_tab(job_cards)
+            
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to retrieve data:\n{str(e)}")
-            return []
+            QMessageBox.critical(self, "Error", f"Failed to generate report:\n{str(e)}")
     
-    def preview_data(self):
-        """Preview filtered data in table"""
-        data = self.get_filtered_data()
+    def _update_stats_cards(self, job_cards):
+        """Update top-level statistics cards"""
+        # Clear existing cards
+        while self.stats_container.count():
+            item = self.stats_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         
-        if not data:
-            QMessageBox.warning(self, "No Data", "No records found. Please adjust your filters.")
-            return
+        total_jobs = len(job_cards)
+        completed_jobs = sum(1 for jc in job_cards if jc[16] == "Completed")
         
-        # All headers in CSV order
-        all_headers = [
-            "Start Date", "Job No", "Job description", "Driver", "Company No", "Vehicle No",
-            "Make", "Model", "Type", "Site", "Section", "End Date",
-            "description", "ref no", "Qty", "Unit", "unit price", "total"
+        total_spare_cost = 0
+        total_labour_cost = 0
+        total_outsource_cost = 0
+        
+        for jc in job_cards:
+            # Spare parts
+            try:
+                spare_parts = json.loads(jc[13]) if jc[13] else []
+                for part in spare_parts:
+                    total_spare_cost += float(part.get('total', 0))
+            except:
+                pass
+            
+            # Labour
+            try:
+                labour_works = json.loads(jc[14]) if jc[14] else []
+                for work in labour_works:
+                    total_labour_cost += float(work.get('work_cost', 0))
+            except:
+                pass
+            
+            # Outsource
+            try:
+                outsource_works = json.loads(jc[15]) if jc[15] else []
+                for work in outsource_works:
+                    total_outsource_cost += float(work.get('cost', 0))
+            except:
+                pass
+        
+        total_cost = total_spare_cost + total_labour_cost + total_outsource_cost
+        
+        # Create stat cards
+        self._add_stat_card("Total Jobs", str(total_jobs), ColorPalette.ACCENT_PRIMARY)
+        self._add_stat_card("Completed", str(completed_jobs), ColorPalette.ACCENT_GREEN)
+        self._add_stat_card("In Progress", str(total_jobs - completed_jobs), ColorPalette.ACCENT_ORANGE)
+        self._add_stat_card("Total Cost", f"Rs. {total_cost:,.2f}", ColorPalette.ACCENT_SECONDARY)
+    
+    def _add_stat_card(self, label, value, color):
+        """Add a statistics card"""
+        card = QFrame()
+        card.setObjectName("stat_card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(4)
+        
+        value_label = QLabel(value)
+        value_label.setObjectName("stat_value")
+        value_label.setStyleSheet(f"color: {color};")
+        
+        text_label = QLabel(label)
+        text_label.setObjectName("stat_label")
+        
+        layout.addWidget(value_label)
+        layout.addWidget(text_label)
+        
+        self.stats_container.addWidget(card)
+    
+    def _update_overview_tab(self, job_cards):
+        """Update overview statistics"""
+        headers = ["Metric", "Value"]
+        self.overview_table.setColumnCount(2)
+        self.overview_table.setHorizontalHeaderLabels(headers)
+        
+        metrics = []
+        
+        # Basic counts
+        metrics.append(("Total Job Cards", str(len(job_cards))))
+        metrics.append(("Completed Jobs", str(sum(1 for jc in job_cards if jc[16] == "Completed"))))
+        metrics.append(("In Progress Jobs", str(sum(1 for jc in job_cards if jc[16] == "In Progress"))))
+        
+        # Unique counts
+        unique_vehicles = len(set(jc[3] for jc in job_cards if jc[3]))
+        unique_drivers = len(set(jc[4] for jc in job_cards if jc[4]))
+        unique_sites = len(set(jc[8] for jc in job_cards if jc[8]))
+        
+        metrics.append(("Unique Vehicles Serviced", str(unique_vehicles)))
+        metrics.append(("Unique Drivers", str(unique_drivers)))
+        metrics.append(("Active Sites", str(unique_sites)))
+        
+        # Cost totals
+        total_spare = sum(self._get_spare_cost(jc[13]) for jc in job_cards)
+        total_labour = sum(self._get_labour_cost(jc[14]) for jc in job_cards)
+        total_outsource = sum(self._get_outsource_cost(jc[15]) for jc in job_cards)
+        
+        metrics.append(("Total Spare Parts Cost", f"Rs. {total_spare:,.2f}"))
+        metrics.append(("Total Labour Cost", f"Rs. {total_labour:,.2f}"))
+        metrics.append(("Total Outsource Cost", f"Rs. {total_outsource:,.2f}"))
+        metrics.append(("Grand Total Cost", f"Rs. {(total_spare + total_labour + total_outsource):,.2f}"))
+        
+        # Populate table
+        self.overview_table.setRowCount(len(metrics))
+        for row, (metric, value) in enumerate(metrics):
+            self.overview_table.setItem(row, 0, QTableWidgetItem(metric))
+            value_item = QTableWidgetItem(value)
+            value_item.setFont(QFont("Arial", 10, QFont.Bold))
+            self.overview_table.setItem(row, 1, value_item)
+        
+        self.overview_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.overview_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+    
+    def _update_spare_parts_tab(self, job_cards):
+        """Analyze spare parts usage"""
+        part_usage = defaultdict(lambda: {"quantity": 0, "cost": 0, "jobs": set(), "vehicles": set()})
+        
+        for jc in job_cards:
+            try:
+                spare_parts = json.loads(jc[13]) if jc[13] else []
+                for part in spare_parts:
+                    key = f"{part.get('id_code', 'N/A')} - {part.get('item_description', 'N/A')}"
+                    part_usage[key]["quantity"] += float(part.get('quantity', 0))
+                    part_usage[key]["cost"] += float(part.get('total', 0))
+                    part_usage[key]["jobs"].add(jc[1])  # job_no
+                    if jc[3]:  # vehicle_no
+                        part_usage[key]["vehicles"].add(jc[3])
+            except:
+                pass
+        
+        # Sort by cost descending
+        sorted_parts = sorted(part_usage.items(), key=lambda x: x[1]["cost"], reverse=True)
+        
+        headers = ["Spare Part", "Total Qty", "Total Cost", "Used in Jobs", "Vehicles"]
+        self.spare_parts_table.setColumnCount(5)
+        self.spare_parts_table.setHorizontalHeaderLabels(headers)
+        self.spare_parts_table.setRowCount(len(sorted_parts))
+        
+        for row, (part, data) in enumerate(sorted_parts):
+            self.spare_parts_table.setItem(row, 0, QTableWidgetItem(part))
+            self.spare_parts_table.setItem(row, 1, QTableWidgetItem(f"{data['quantity']:.2f}"))
+            self.spare_parts_table.setItem(row, 2, QTableWidgetItem(f"Rs. {data['cost']:,.2f}"))
+            self.spare_parts_table.setItem(row, 3, QTableWidgetItem(str(len(data['jobs']))))
+            self.spare_parts_table.setItem(row, 4, QTableWidgetItem(", ".join(sorted(data['vehicles'])[:3])))
+        
+        self.spare_parts_table.resizeColumnsToContents()
+        header = self.spare_parts_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+    
+    def _update_vehicle_tab(self, job_cards):
+        """Analyze vehicle service history"""
+        vehicle_stats = defaultdict(lambda: {
+            "jobs": 0, "spare_cost": 0, "labour_cost": 0, 
+            "outsource_cost": 0, "make": "", "model": ""
+        })
+        
+        for jc in job_cards:
+            if not jc[3]:  # vehicle_no
+                continue
+            
+            vehicle = jc[3]
+            vehicle_stats[vehicle]["jobs"] += 1
+            vehicle_stats[vehicle]["make"] = jc[5] or "N/A"
+            vehicle_stats[vehicle]["model"] = jc[6] or "N/A"
+            vehicle_stats[vehicle]["spare_cost"] += self._get_spare_cost(jc[13])
+            vehicle_stats[vehicle]["labour_cost"] += self._get_labour_cost(jc[14])
+            vehicle_stats[vehicle]["outsource_cost"] += self._get_outsource_cost(jc[15])
+        
+        # Sort by total cost descending
+        sorted_vehicles = sorted(
+            vehicle_stats.items(), 
+            key=lambda x: x[1]["spare_cost"] + x[1]["labour_cost"] + x[1]["outsource_cost"],
+            reverse=True
+        )
+        
+        headers = ["Vehicle No", "Make", "Model", "Job Count", "Spare Cost", "Labour Cost", "Outsource Cost", "Total Cost"]
+        self.vehicle_table.setColumnCount(8)
+        self.vehicle_table.setHorizontalHeaderLabels(headers)
+        self.vehicle_table.setRowCount(len(sorted_vehicles))
+        
+        for row, (vehicle, data) in enumerate(sorted_vehicles):
+            total_cost = data["spare_cost"] + data["labour_cost"] + data["outsource_cost"]
+            
+            self.vehicle_table.setItem(row, 0, QTableWidgetItem(vehicle))
+            self.vehicle_table.setItem(row, 1, QTableWidgetItem(data["make"]))
+            self.vehicle_table.setItem(row, 2, QTableWidgetItem(data["model"]))
+            self.vehicle_table.setItem(row, 3, QTableWidgetItem(str(data["jobs"])))
+            self.vehicle_table.setItem(row, 4, QTableWidgetItem(f"Rs. {data['spare_cost']:,.2f}"))
+            self.vehicle_table.setItem(row, 5, QTableWidgetItem(f"Rs. {data['labour_cost']:,.2f}"))
+            self.vehicle_table.setItem(row, 6, QTableWidgetItem(f"Rs. {data['outsource_cost']:,.2f}"))
+            
+            total_item = QTableWidgetItem(f"Rs. {total_cost:,.2f}")
+            total_item.setFont(QFont("Arial", 10, QFont.Bold))
+            self.vehicle_table.setItem(row, 7, total_item)
+        
+        self.vehicle_table.resizeColumnsToContents()
+    
+    def _update_cost_tab(self, job_cards):
+        """Analyze cost breakdown by category"""
+        # Cost by site
+        site_costs = defaultdict(lambda: {"spare": 0, "labour": 0, "outsource": 0, "jobs": 0})
+        
+        for jc in job_cards:
+            site = jc[8] or "Unassigned"
+            site_costs[site]["jobs"] += 1
+            site_costs[site]["spare"] += self._get_spare_cost(jc[13])
+            site_costs[site]["labour"] += self._get_labour_cost(jc[14])
+            site_costs[site]["outsource"] += self._get_outsource_cost(jc[15])
+        
+        sorted_sites = sorted(
+            site_costs.items(),
+            key=lambda x: x[1]["spare"] + x[1]["labour"] + x[1]["outsource"],
+            reverse=True
+        )
+        
+        headers = ["Site", "Jobs", "Spare Parts", "Labour", "Outsource", "Total Cost", "Avg per Job"]
+        self.cost_table.setColumnCount(7)
+        self.cost_table.setHorizontalHeaderLabels(headers)
+        self.cost_table.setRowCount(len(sorted_sites))
+        
+        for row, (site, data) in enumerate(sorted_sites):
+            total = data["spare"] + data["labour"] + data["outsource"]
+            avg = total / data["jobs"] if data["jobs"] > 0 else 0
+            
+            self.cost_table.setItem(row, 0, QTableWidgetItem(site))
+            self.cost_table.setItem(row, 1, QTableWidgetItem(str(data["jobs"])))
+            self.cost_table.setItem(row, 2, QTableWidgetItem(f"Rs. {data['spare']:,.2f}"))
+            self.cost_table.setItem(row, 3, QTableWidgetItem(f"Rs. {data['labour']:,.2f}"))
+            self.cost_table.setItem(row, 4, QTableWidgetItem(f"Rs. {data['outsource']:,.2f}"))
+            
+            total_item = QTableWidgetItem(f"Rs. {total:,.2f}")
+            total_item.setFont(QFont("Arial", 10, QFont.Bold))
+            self.cost_table.setItem(row, 5, total_item)
+            
+            self.cost_table.setItem(row, 6, QTableWidgetItem(f"Rs. {avg:,.2f}"))
+        
+        self.cost_table.resizeColumnsToContents()
+        header = self.cost_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+    
+    def _update_performance_tab(self, job_cards):
+        """Calculate performance metrics"""
+        # Driver performance
+        driver_stats = defaultdict(lambda: {"jobs": 0, "completed": 0, "total_cost": 0})
+        
+        for jc in job_cards:
+            driver = jc[4] or "Unassigned"
+            driver_stats[driver]["jobs"] += 1
+            if jc[16] == "Completed":
+                driver_stats[driver]["completed"] += 1
+            
+            driver_stats[driver]["total_cost"] += (
+                self._get_spare_cost(jc[13]) +
+                self._get_labour_cost(jc[14]) +
+                self._get_outsource_cost(jc[15])
+            )
+        
+        sorted_drivers = sorted(driver_stats.items(), key=lambda x: x[1]["jobs"], reverse=True)
+        
+        headers = ["Driver", "Total Jobs", "Completed", "Completion Rate", "Total Cost", "Avg Cost/Job"]
+        self.performance_table.setColumnCount(6)
+        self.performance_table.setHorizontalHeaderLabels(headers)
+        self.performance_table.setRowCount(len(sorted_drivers))
+        
+        for row, (driver, data) in enumerate(sorted_drivers):
+            completion_rate = (data["completed"] / data["jobs"] * 100) if data["jobs"] > 0 else 0
+            avg_cost = data["total_cost"] / data["jobs"] if data["jobs"] > 0 else 0
+            
+            self.performance_table.setItem(row, 0, QTableWidgetItem(driver))
+            self.performance_table.setItem(row, 1, QTableWidgetItem(str(data["jobs"])))
+            self.performance_table.setItem(row, 2, QTableWidgetItem(str(data["completed"])))
+            self.performance_table.setItem(row, 3, QTableWidgetItem(f"{completion_rate:.1f}%"))
+            self.performance_table.setItem(row, 4, QTableWidgetItem(f"Rs. {data['total_cost']:,.2f}"))
+            self.performance_table.setItem(row, 5, QTableWidgetItem(f"Rs. {avg_cost:,.2f}"))
+        
+        self.performance_table.resizeColumnsToContents()
+        header = self.performance_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+    
+    def _get_spare_cost(self, spare_json):
+        """Extract total spare parts cost from JSON"""
+        try:
+            parts = json.loads(spare_json) if spare_json else []
+            return sum(float(p.get('total', 0)) for p in parts)
+        except:
+            return 0.0
+    
+    def _get_labour_cost(self, labour_json):
+        """Extract total labour cost from JSON"""
+        try:
+            works = json.loads(labour_json) if labour_json else []
+            return sum(float(w.get('work_cost', 0)) for w in works)
+        except:
+            return 0.0
+    
+    def _get_outsource_cost(self, outsource_json):
+        """Extract total outsource cost from JSON"""
+        try:
+            works = json.loads(outsource_json) if outsource_json else []
+            return sum(float(w.get('cost', 0)) for w in works)
+        except:
+            return 0.0
+    
+    def export_csv(self):
+        """Export current tab data to CSV"""
+        current_index = self.tabs.currentIndex()
+        tables = [
+            self.overview_table, self.spare_parts_table, 
+            self.vehicle_table, self.cost_table, self.performance_table
         ]
+        tab_names = ["Overview", "Spare_Parts", "Vehicle_Analysis", "Cost_Analysis", "Performance"]
         
-        visible_indices = []
-        for col in self.visible_columns:
-            if col in all_headers:
-                visible_indices.append(all_headers.index(col))
+        table = tables[current_index]
+        tab_name = tab_names[current_index]
         
-        filtered_headers = [all_headers[i] for i in visible_indices]
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export to CSV",
+            f"Report_{tab_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv)"
+        )
         
-        self.table.clear()
-        self.table.setColumnCount(len(filtered_headers))
-        self.table.setHorizontalHeaderLabels(filtered_headers)
-        
-        # Add 1 extra row for grand total
-        self.table.setRowCount(len(data) + 1)
-        
-        # Add data rows
-        for row_idx, row_data in enumerate(data):
-            for col_idx, header_idx in enumerate(visible_indices):
-                if header_idx < len(row_data):
-                    value = row_data[header_idx]
-                    item = QTableWidgetItem(str(value) if value else "")
-                    self.table.setItem(row_idx, col_idx, item)
-        
-        # Add grand total row
-        total_index = all_headers.index("total") if "total" in all_headers else -1
-        if total_index in visible_indices:
-            total_col_idx = visible_indices.index(total_index)
-            grand_total = 0
-            
-            # Calculate grand total
-            for row_data in data:
-                try:
-                    total_val = float(row_data[total_index]) if row_data[total_index] else 0
-                    grand_total += total_val
-                except (ValueError, TypeError):
-                    pass
-            
-            # Add grand total label
-            label_item = QTableWidgetItem("GRAND TOTAL:")
-            label_item.setFont(QFont("Arial", 11, QFont.Bold))
-            self.table.setItem(len(data), 0, label_item)
-            
-            # Add grand total value in the total column
-            total_item = QTableWidgetItem(f"{grand_total:.2f}")
-            total_item.setFont(QFont("Arial", 11, QFont.Bold))
-            self.table.setItem(len(data), total_col_idx, total_item)
-        
-        self.table.resizeColumnsToContents()
-        
-        # Apply current zoom level
-        self.apply_zoom()
-        
-        QMessageBox.information(self, "Preview Loaded", f"✅ Loaded {len(data)} records\n\nAll details and spare parts included in preview!")
-    
-    def export_to_csv(self):
-        """Export filtered data to CSV"""
-        data = self.get_filtered_data()
-        
-        if not data:
-            QMessageBox.warning(self, "No Data", "No records to export. Please check your filters.")
+        if not filename:
             return
         
         try:
-            # All headers in CSV order
-            all_headers = [
-                "Start Date", "Job No", "Job description", "Driver", "Company No", "Vehicle No",
-                "Make", "Model", "Type", "Site", "Section", "End Date",
-                "description", "ref no", "Qty", "Unit", "unit price", "total"
-            ]
-            
-            visible_indices = []
-            for col in self.visible_columns:
-                if col in all_headers:
-                    visible_indices.append(all_headers.index(col))
-            
-            filtered_headers = [all_headers[i] for i in visible_indices]
-            
-            # File dialog
-            home_dir = str(Path.home())
-            filename, _ = QFileDialog.getSaveFileName(
-                self,
-                "Export Report as CSV",
-                f"{home_dir}/JobCards_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                "CSV Files (*.csv);;All Files (*)"
-            )
-            
-            if not filename:
-                return
-            
-            # Write CSV
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
                 
                 # Write headers
-                writer.writerow(filtered_headers)
+                headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+                writer.writerow(headers)
                 
-                # Write data rows with only visible columns
-                for row_data in data:
-                    filtered_row = [row_data[i] if i < len(row_data) else "" for i in visible_indices]
-                    writer.writerow(filtered_row)
-                
-                # Add grand total row
-                total_index = all_headers.index("total") if "total" in all_headers else -1
-                if total_index in visible_indices:
-                    grand_total = 0
-                    
-                    # Calculate grand total
-                    for row_data in data:
-                        try:
-                            total_val = float(row_data[total_index]) if row_data[total_index] else 0
-                            grand_total += total_val
-                        except (ValueError, TypeError):
-                            pass
-                    
-                    # Create grand total row
-                    grand_total_row = [""] * len(visible_indices)
-                    grand_total_row[0] = "GRAND TOTAL:"
-                    total_col_idx = visible_indices.index(total_index)
-                    grand_total_row[total_col_idx] = f"{grand_total:.2f}"
-                    writer.writerow(grand_total_row)
+                # Write data
+                for row in range(table.rowCount()):
+                    row_data = []
+                    for col in range(table.columnCount()):
+                        item = table.item(row, col)
+                        row_data.append(item.text() if item else "")
+                    writer.writerow(row_data)
             
-            record_count = len(data)
-            QMessageBox.information(
-                self,
-                "Export Successful ✅",
-                f"Report exported successfully!\n\n"
-                f"📁 File: {filename}\n"
-                f"📊 Records: {record_count}\n"
-                f"📋 Columns: {len(filtered_headers)}\n\n"
-                f"✨ All details included!"
-            )
-        
+            QMessageBox.information(self, "Success", f"Report exported successfully to:\n{filename}")
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", f"Failed to export:\n{str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to export CSV:\n{str(e)}")
     
-    def zoom_in_table(self):
-        """Increase table zoom level"""
-        self.zoom_level = min(250, self.zoom_level + 25)
-        self.apply_zoom()
+    def export_xlsx(self):
+        """Export current tab data to Excel"""
+        if not HAS_OPENPYXL:
+            QMessageBox.warning(self, "Not Available", "Excel export requires openpyxl library.\nInstall with: pip install openpyxl")
+            return
+        
+        current_index = self.tabs.currentIndex()
+        tables = [
+            self.overview_table, self.spare_parts_table,
+            self.vehicle_table, self.cost_table, self.performance_table
+        ]
+        tab_names = ["Overview", "Spare_Parts", "Vehicle_Analysis", "Cost_Analysis", "Performance"]
+        
+        table = tables[current_index]
+        tab_name = tab_names[current_index]
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export to Excel",
+            f"Report_{tab_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            "Excel Files (*.xlsx)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = tab_name
+            
+            # Styling
+            header_fill = PatternFill(start_color="2E7D6E", end_color="2E7D6E", fill_type="solid")
+            header_font = XLFont(color="FFFFFF", bold=True)
+            border = Border(
+                left=Side(style='thin'),
+                right=Side(style='thin'),
+                top=Side(style='thin'),
+                bottom=Side(style='thin')
+            )
+            
+            # Write headers
+            for col in range(table.columnCount()):
+                cell = ws.cell(row=1, column=col+1)
+                cell.value = table.horizontalHeaderItem(col).text()
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.border = border
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            # Write data
+            for row in range(table.rowCount()):
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    cell = ws.cell(row=row+2, column=col+1)
+                    cell.value = item.text() if item else ""
+                    cell.border = border
+                    
+                    # Right-align numbers
+                    if item and ("Rs." in item.text() or "%" in item.text() or item.text().replace(".", "").replace(",", "").isdigit()):
+                        cell.alignment = Alignment(horizontal='right')
+            
+            # Auto-fit columns
+            for column in ws.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                ws.column_dimensions[column_letter].width = min(max_length + 2, 50)
+            
+            wb.save(filename)
+            QMessageBox.information(self, "Success", f"Report exported successfully to:\n{filename}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export Excel:\n{str(e)}")
     
-    def zoom_out_table(self):
-        """Decrease table zoom level"""
-        self.zoom_level = max(50, self.zoom_level - 25)
-        self.apply_zoom()
+    def export_pdf(self):
+        """Export current tab data to PDF"""
+        if not HAS_REPORTLAB:
+            QMessageBox.warning(self, "Not Available", "PDF export requires reportlab library.\nInstall with: pip install reportlab")
+            return
+        
+        current_index = self.tabs.currentIndex()
+        tables = [
+            self.overview_table, self.spare_parts_table,
+            self.vehicle_table, self.cost_table, self.performance_table
+        ]
+        tab_names = ["Overview", "Spare Parts Analysis", "Vehicle Analysis", "Cost Analysis", "Performance Metrics"]
+        
+        table = tables[current_index]
+        tab_name = tab_names[current_index]
+        
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export to PDF",
+            f"Report_{tab_name.replace(' ', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            "PDF Files (*.pdf)"
+        )
+        
+        if not filename:
+            return
+        
+        try:
+            doc = SimpleDocTemplate(filename, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
+            story = []
+            styles = getSampleStyleSheet()
+            
+            # Title
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                textColor=colors.HexColor("#2E7D6E"),
+                spaceAfter=12,
+                alignment=TA_CENTER
+            )
+            story.append(Paragraph(f"Analytics Report: {tab_name}", title_style))
+            story.append(Paragraph(
+                f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 
+                styles['Normal']
+            ))
+            story.append(Spacer(1, 0.3*inch))
+            
+            # Table data
+            data = []
+            headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+            data.append(headers)
+            
+            for row in range(table.rowCount()):
+                row_data = []
+                for col in range(table.columnCount()):
+                    item = table.item(row, col)
+                    row_data.append(item.text() if item else "")
+                data.append(row_data)
+            
+            # Create PDF table
+            pdf_table = Table(data)
+            pdf_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2E7D6E")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9FAFB")]),
+            ]))
+            
+            story.append(pdf_table)
+            
+            # Build PDF
+            doc.build(story)
+            QMessageBox.information(self, "Success", f"Report exported successfully to:\n{filename}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export PDF:\n{str(e)}")
     
-    def apply_zoom(self):
-        """Apply zoom level to table by scaling rows and columns"""
-        zoom_factor = self.zoom_level / 100.0
-        
-        # Create font at the zoomed size
-        cell_font = QFont("Arial", int(10 * zoom_factor))
-        header_font = QFont("Arial", int(11 * zoom_factor), QFont.Bold)
-        
-        # Apply font to all cells
-        for row in range(self.table.rowCount()):
-            for col in range(self.table.columnCount()):
-                item = self.table.item(row, col)
-                if item:
-                    item.setFont(cell_font)
-        
-        # Apply font to headers
-        self.table.horizontalHeader().setFont(header_font)
-        self.table.verticalHeader().setFont(header_font)
-        
-        # Scale row heights
-        row_height = int(24 * zoom_factor)
-        for row in range(self.table.rowCount()):
-            self.table.setRowHeight(row, row_height)
-        
-        # Scale header height
-        header_height = int(24 * zoom_factor)
-        self.table.horizontalHeader().setFixedHeight(header_height)
-        
-        # Scale column widths - get all column widths and scale them
-        for col in range(self.table.columnCount()):
-            # Start with a base width and scale it
-            base_width = 80
-            new_width = int(base_width * zoom_factor)
-            self.table.setColumnWidth(col, new_width)
-        
-        # Update zoom label
-        self.zoom_label.setText(f"{self.zoom_level}%")
+    def go_back(self):
+        """Navigate back to home page"""
+        if self.parent:
+            self.parent.go_to_home()
