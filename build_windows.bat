@@ -7,7 +7,7 @@ echo.
 echo ========================================
 echo Senarath Workshop - Windows Build Script
 echo ========================================
-echo By DrkCyph7
+echo.
 
 REM Check if Python is installed
 python --version >nul 2>&1
@@ -60,7 +60,7 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo SUCCESS! Build Complete :
+echo SUCCESS! Build Complete
 echo ========================================
 echo.
 echo Your executable is ready at:

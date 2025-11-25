@@ -58,11 +58,17 @@ def setup_database() -> bool:
                 number TEXT,
                 make TEXT,
                 model TEXT,
-                type TEXT
+                type TEXT,
+                engine_no TEXT,
+                chassis_no TEXT,
+                year TEXT
             )''',
             'drivers': '''CREATE TABLE IF NOT EXISTS drivers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL
+                name TEXT NOT NULL,
+                mobile TEXT,
+                address TEXT,
+                license_no TEXT
             )''',
             'sites': '''CREATE TABLE IF NOT EXISTS sites (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,7 +118,10 @@ def setup_database() -> bool:
                 spare_parts TEXT,
                 labour_works TEXT,
                 outsource_works TEXT,
-                status TEXT DEFAULT 'In Progress'
+                status TEXT DEFAULT 'In Progress',
+                engine_no TEXT,
+                chassis_no TEXT,
+                year TEXT
             )'''
         }
         
@@ -120,13 +129,8 @@ def setup_database() -> bool:
         for table_name, sql in tables.items():
             c.execute(sql)
         
-        # Add status column to job_cards if it doesn't exist (migration)
-        try:
-            c.execute("SELECT status FROM job_cards LIMIT 1")
-        except sqlite3.OperationalError:
-            logger.info("Adding status column to job_cards table...")
-            c.execute("ALTER TABLE job_cards ADD COLUMN status TEXT DEFAULT 'In Progress'")
-            logger.info("✅ Status column added successfully!")
+        # Run migrations for existing databases
+        _run_migrations(c)
         
         # Insert sample data if tables are empty
         _insert_sample_data(c)
@@ -142,6 +146,79 @@ def setup_database() -> bool:
     except Exception as e:
         logger.error(f"Unexpected error during database setup: {e}")
         return False
+
+
+def _run_migrations(cursor: sqlite3.Cursor) -> None:
+    """
+    Run database migrations to add missing columns to existing tables.
+    
+    Args:
+        cursor: SQLite cursor object
+    """
+    logger.info("Running database migrations...")
+    
+    # Get existing columns in vehicles table
+    cursor.execute("PRAGMA table_info(vehicles)")
+    vehicles_columns = {row[1] for row in cursor.fetchall()}
+    
+    # Add missing columns to vehicles table
+    vehicles_migrations = [
+        ("engine_no", "TEXT"),
+        ("chassis_no", "TEXT"),
+        ("year", "TEXT")
+    ]
+    
+    for column_name, column_type in vehicles_migrations:
+        if column_name not in vehicles_columns:
+            try:
+                cursor.execute(f"ALTER TABLE vehicles ADD COLUMN {column_name} {column_type}")
+                logger.info(f"✓ Added column '{column_name}' to vehicles table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+    
+    # Get existing columns in drivers table
+    cursor.execute("PRAGMA table_info(drivers)")
+    drivers_columns = {row[1] for row in cursor.fetchall()}
+    
+    # Add missing columns to drivers table
+    drivers_migrations = [
+        ("mobile", "TEXT"),
+        ("address", "TEXT"),
+        ("license_no", "TEXT")
+    ]
+    
+    for column_name, column_type in drivers_migrations:
+        if column_name not in drivers_columns:
+            try:
+                cursor.execute(f"ALTER TABLE drivers ADD COLUMN {column_name} {column_type}")
+                logger.info(f"✓ Added column '{column_name}' to drivers table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+    
+    # Get existing columns in job_cards table
+    cursor.execute("PRAGMA table_info(job_cards)")
+    job_cards_columns = {row[1] for row in cursor.fetchall()}
+    
+    # Add missing columns to job_cards table
+    job_cards_migrations = [
+        ("spare_parts", "TEXT"),
+        ("labour_works", "TEXT"),
+        ("outsource_works", "TEXT"),
+        ("status", "TEXT DEFAULT 'In Progress'"),
+        ("engine_no", "TEXT"),
+        ("chassis_no", "TEXT"),
+        ("year", "TEXT")
+    ]
+    
+    for column_name, column_type in job_cards_migrations:
+        if column_name not in job_cards_columns:
+            try:
+                cursor.execute(f"ALTER TABLE job_cards ADD COLUMN {column_name} {column_type}")
+                logger.info(f"✓ Added column '{column_name}' to job_cards table")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+    
+    logger.info("✅ Database migrations completed!")
 
 
 def _insert_sample_data(cursor: sqlite3.Cursor) -> None:
