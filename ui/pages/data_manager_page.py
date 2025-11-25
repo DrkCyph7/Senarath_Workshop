@@ -37,6 +37,15 @@ class VehicleDialog(QDialog):
         self.type_input = QLineEdit()
         self.type_input.setPlaceholderText("e.g., Double Cab")
         
+        self.engine_no_input = QLineEdit()
+        self.engine_no_input.setPlaceholderText("e.g., 1GR1234567")
+        
+        self.chassis_no_input = QLineEdit()
+        self.chassis_no_input.setPlaceholderText("e.g., JTFDE626500123456")
+        
+        self.year_input = QLineEdit()
+        self.year_input.setPlaceholderText("e.g., 2020")
+        
         form_layout.addWidget(QLabel("Company No:"), 0, 0)
         form_layout.addWidget(self.company_no_input, 0, 1)
         
@@ -51,6 +60,15 @@ class VehicleDialog(QDialog):
         
         form_layout.addWidget(QLabel("Type:"), 4, 0)
         form_layout.addWidget(self.type_input, 4, 1)
+        
+        form_layout.addWidget(QLabel("Engine No:"), 5, 0)
+        form_layout.addWidget(self.engine_no_input, 5, 1)
+        
+        form_layout.addWidget(QLabel("Chassis No:"), 6, 0)
+        form_layout.addWidget(self.chassis_no_input, 6, 1)
+        
+        form_layout.addWidget(QLabel("Year:"), 7, 0)
+        form_layout.addWidget(self.year_input, 7, 1)
         
         layout.addLayout(form_layout)
         
@@ -69,6 +87,9 @@ class VehicleDialog(QDialog):
             self.make_input.setText(edit_data.get('make', ''))
             self.model_input.setText(edit_data.get('model', ''))
             self.type_input.setText(edit_data.get('type', ''))
+            self.engine_no_input.setText(edit_data.get('engine_no', ''))
+            self.chassis_no_input.setText(edit_data.get('chassis_no', ''))
+            self.year_input.setText(edit_data.get('year', ''))
     
     def get_data(self):
         return {
@@ -76,7 +97,69 @@ class VehicleDialog(QDialog):
             'number': self.number_input.text().strip(),
             'make': self.make_input.text().strip(),
             'model': self.model_input.text().strip(),
-            'type': self.type_input.text().strip()
+            'type': self.type_input.text().strip(),
+            'engine_no': self.engine_no_input.text().strip(),
+            'chassis_no': self.chassis_no_input.text().strip(),
+            'year': self.year_input.text().strip()
+        }
+
+
+class DriverDialog(QDialog):
+    def __init__(self, parent=None, edit_data=None):
+        super().__init__(parent)
+        self.setWindowTitle("Add/Edit Driver")
+        self.setMinimumWidth(500)
+        
+        layout = QVBoxLayout()
+        form_layout = QGridLayout()
+        
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("e.g., John Perera")
+        
+        self.mobile_input = QLineEdit()
+        self.mobile_input.setPlaceholderText("e.g., 0771234567")
+        
+        self.address_input = QLineEdit()
+        self.address_input.setPlaceholderText("e.g., 123 Main St, Colombo")
+        
+        self.license_input = QLineEdit()
+        self.license_input.setPlaceholderText("e.g., B1234567")
+        
+        form_layout.addWidget(QLabel("Name:"), 0, 0)
+        form_layout.addWidget(self.name_input, 0, 1)
+        
+        form_layout.addWidget(QLabel("Mobile:"), 1, 0)
+        form_layout.addWidget(self.mobile_input, 1, 1)
+        
+        form_layout.addWidget(QLabel("Address:"), 2, 0)
+        form_layout.addWidget(self.address_input, 2, 1)
+        
+        form_layout.addWidget(QLabel("License No:"), 3, 0)
+        form_layout.addWidget(self.license_input, 3, 1)
+        
+        layout.addLayout(form_layout)
+        
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setLayout(layout)
+        
+        # If editing, populate fields
+        if edit_data:
+            self.name_input.setText(edit_data.get('name', ''))
+            self.mobile_input.setText(edit_data.get('mobile', ''))
+            self.address_input.setText(edit_data.get('address', ''))
+            self.license_input.setText(edit_data.get('license_no', ''))
+    
+    def get_data(self):
+        return {
+            'name': self.name_input.text().strip(),
+            'mobile': self.mobile_input.text().strip(),
+            'address': self.address_input.text().strip(),
+            'license_no': self.license_input.text().strip()
         }
 
 
@@ -596,13 +679,13 @@ class DataManagerPage(QWidget):
         c = conn.cursor()
 
         if self.current_table == "vehicles":
-            c.execute("SELECT id, company_no, number, make, model, type FROM vehicles ORDER BY id DESC")
+            c.execute("SELECT id, company_no, number, make, model, type, engine_no, chassis_no, year FROM vehicles ORDER BY id DESC")
             data = c.fetchall()
-            headers = ["ID", "Company No", "Vehicle No", "Make", "Model", "Type"]
+            headers = ["ID", "Company No", "Vehicle No", "Make", "Model", "Type", "Engine No", "Chassis No", "Year"]
         elif self.current_table == "drivers":
-            c.execute("SELECT id, name FROM drivers ORDER BY name")
+            c.execute("SELECT id, name, mobile, address, license_no FROM drivers ORDER BY name")
             data = c.fetchall()
-            headers = ["ID", "Name"]
+            headers = ["ID", "Name", "Mobile", "Address", "License No"]
         elif self.current_table == "sites":
             c.execute("SELECT id, name FROM sites ORDER BY name")
             data = c.fetchall()
@@ -647,7 +730,7 @@ class DataManagerPage(QWidget):
 
     def on_selection_changed(self):
         selected_rows = self.table.selectionModel().selectedRows()
-        if selected_rows and self.current_table not in ["vehicles", "labour", "spare_parts"]:
+        if selected_rows and self.current_table not in ["vehicles", "drivers", "labour", "spare_parts"]:
             row = selected_rows[0].row()
             self.current_edit_id = int(self.table.item(row, 0).text())
             name = self.table.item(row, 1).text()
@@ -664,13 +747,32 @@ class DataManagerPage(QWidget):
                 
                 conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
-                c.execute("""INSERT INTO vehicles (company_no, number, make, model, type) 
-                             VALUES (?, ?, ?, ?, ?)""",
-                         (data['company_no'], data['number'], data['make'], data['model'], data['type']))
+                c.execute("""INSERT INTO vehicles (company_no, number, make, model, type, engine_no, chassis_no, year) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                         (data['company_no'], data['number'], data['make'], data['model'], data['type'],
+                          data['engine_no'], data['chassis_no'], data['year']))
                 conn.commit()
                 conn.close()
                 
                 QMessageBox.information(self, "Success", "Vehicle added successfully!")
+                self.refresh_all()
+        elif self.current_table == "drivers":
+            dialog = DriverDialog(self)
+            if dialog.exec():
+                data = dialog.get_data()
+                if not data['name']:
+                    QMessageBox.warning(self, "Warning", "Driver name is required!")
+                    return
+                
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute("""INSERT INTO drivers (name, mobile, address, license_no) 
+                             VALUES (?, ?, ?, ?)""",
+                         (data['name'], data['mobile'], data['address'], data['license_no']))
+                conn.commit()
+                conn.close()
+                
+                QMessageBox.information(self, "Success", "Driver added successfully!")
                 self.refresh_all()
         elif self.current_table == "labour":
             # Get sites for dropdown
@@ -727,9 +829,7 @@ class DataManagerPage(QWidget):
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
 
-            if self.current_table == "drivers":
-                c.execute("INSERT INTO drivers (name) VALUES (?)", (text,))
-            elif self.current_table == "sites":
+            if self.current_table == "sites":
                 c.execute("INSERT INTO sites (name) VALUES (?)", (text,))
             elif self.current_table == "sections":
                 c.execute("INSERT INTO sections (name) VALUES (?)", (text,))
@@ -751,10 +851,42 @@ class DataManagerPage(QWidget):
         row = selected_rows[0].row()
         record_id = int(self.table.item(row, 0).text())
         
-        if self.current_table == "vehicles":
+        if self.current_table == "drivers":
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
-            c.execute("SELECT company_no, number, make, model, type FROM vehicles WHERE id=?", (record_id,))
+            c.execute("SELECT name, mobile, address, license_no FROM drivers WHERE id=?", (record_id,))
+            driver_data = c.fetchone()
+            conn.close()
+            
+            if driver_data:
+                edit_data = {
+                    'name': driver_data[0],
+                    'mobile': driver_data[1],
+                    'address': driver_data[2],
+                    'license_no': driver_data[3]
+                }
+                
+                dialog = DriverDialog(self, edit_data=edit_data)
+                if dialog.exec():
+                    data = dialog.get_data()
+                    if not data['name']:
+                        QMessageBox.warning(self, "Warning", "Driver name is required!")
+                        return
+                    
+                    conn = sqlite3.connect(DB_PATH)
+                    c = conn.cursor()
+                    c.execute("""UPDATE drivers SET name=?, mobile=?, address=?, license_no=? 
+                                 WHERE id=?""",
+                             (data['name'], data['mobile'], data['address'], data['license_no'], record_id))
+                    conn.commit()
+                    conn.close()
+                    
+                    QMessageBox.information(self, "Success", "Driver updated successfully!")
+                    self.refresh_all()
+        elif self.current_table == "vehicles":
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT company_no, number, make, model, type, engine_no, chassis_no, year FROM vehicles WHERE id=?", (record_id,))
             vehicle_data = c.fetchone()
             conn.close()
             
@@ -764,7 +896,10 @@ class DataManagerPage(QWidget):
                     'number': vehicle_data[1],
                     'make': vehicle_data[2],
                     'model': vehicle_data[3],
-                    'type': vehicle_data[4]
+                    'type': vehicle_data[4],
+                    'engine_no': vehicle_data[5],
+                    'chassis_no': vehicle_data[6],
+                    'year': vehicle_data[7]
                 }
                 
                 dialog = VehicleDialog(self, edit_data=edit_data)
@@ -776,10 +911,10 @@ class DataManagerPage(QWidget):
                     
                     conn = sqlite3.connect(DB_PATH)
                     c = conn.cursor()
-                    c.execute("""UPDATE vehicles SET company_no=?, number=?, make=?, model=?, type=? 
+                    c.execute("""UPDATE vehicles SET company_no=?, number=?, make=?, model=?, type=?, engine_no=?, chassis_no=?, year=? 
                                  WHERE id=?""",
                              (data['company_no'], data['number'], data['make'], data['model'], 
-                              data['type'], record_id))
+                              data['type'], data['engine_no'], data['chassis_no'], data['year'], record_id))
                     conn.commit()
                     conn.close()
                     

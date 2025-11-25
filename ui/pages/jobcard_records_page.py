@@ -881,8 +881,8 @@ class JobCardEditDialog(QDialog):
         # Status dropdown
         self.status_input = QComboBox()
         self.status_input.setEditable(False)
-        self.status_input.addItems(['In Progress', 'Completed'])
-        self.status_input.setCurrentText(job_data.get('status', 'In Progress'))
+        self.status_input.addItems(['Completed', 'In Progress'])
+        self.status_input.setCurrentText(job_data.get('status', 'Completed'))
         self.status_input.setStyleSheet(f"""
             QComboBox {{
                 background-color: {ColorPalette.BG_PRIMARY};
@@ -1377,8 +1377,10 @@ class JobCardDetailDialog(QDialog):
             ("Vehicle Make", job_data.get('make', '—')),
             ("Vehicle Model", job_data.get('model', '—')),
             ("Vehicle Type", job_data.get('type', '—')),
+            ("Year", job_data.get('year', '—')),
             ("Start Date", start_date),
             ("End Date", end_date),
+            ("Hr / Km", job_data.get('hr_km', '—')),
         ]
         for idx, (label, value) in enumerate(details):
             row = idx // 3
@@ -2118,6 +2120,8 @@ class JobCardDetailDialog(QDialog):
                 ('Company No', job_data.get('company_no', '—'), 'Vehicle Make', job_data.get('make', '—')),
                 ('Start Date', job_data.get('start_date', '—'), 'Vehicle Model', job_data.get('model', '—')),
                 ('End Date', job_data.get('end_date', '—'), 'Vehicle Type', job_data.get('type', '—')),
+                ('Engine No', job_data.get('engine_no', '—'), 'Chassis No', job_data.get('chassis_no', '—')),
+                ('Year', job_data.get('year', '—'), 'Hr/Km', job_data.get('hr_km', '—')),
             ]
             info_rows = []
             for left_label, left_value, right_label, right_value in info_pairs:
@@ -3239,7 +3243,7 @@ class JobCardRecordsPage(QWidget):
         c = conn.cursor()
         c.execute("""SELECT job_no, company_no, vehicle_no, driver, make, model, type, 
                      site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works,
-                     COALESCE(status, 'In Progress')
+                     COALESCE(status, 'In Progress'), engine_no, chassis_no, year
                      FROM job_cards WHERE id=?""", (record_id,))
         row = c.fetchone()
         conn.close()
@@ -3264,6 +3268,18 @@ class JobCardRecordsPage(QWidget):
                 'labour_works': row[14],
                 'outsource_works': row[15],
                 'status': row[16],
+                'engine_no': row[17],
+                'chassis_no': row[18],
+                'year': row[19],
+                'start_date': row[10],
+                'end_date': row[11],
+                'description': row[12],
+                'spare_parts': row[13],
+                'labour_works': row[14],
+                'outsource_works': row[15],
+                'status': row[16],
+                'engine_no': row[17],
+                'chassis_no': row[18],
                 'id': record_id  # Pass ID for status updates
             }
             dialog = JobCardDetailDialog(job_data, self)
@@ -3291,7 +3307,7 @@ class JobCardRecordsPage(QWidget):
         c = conn.cursor()
         c.execute("""SELECT id, job_no, company_no, vehicle_no, driver, make, model, type, 
                      site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works,
-                     COALESCE(status, 'In Progress')
+                     COALESCE(status, 'In Progress'), engine_no, chassis_no, year
                      FROM job_cards WHERE id=?""", (record_id,))
         row = c.fetchone()
         conn.close()
@@ -3303,7 +3319,7 @@ class JobCardRecordsPage(QWidget):
                 'site': row[8], 'section': row[9], 'hr_km': row[10],
                 'start_date': row[11], 'end_date': row[12], 'description': row[13],
                 'spare_parts': row[14], 'labour_works': row[15], 'outsource_works': row[16],
-                'status': row[17]
+                'status': row[17], 'engine_no': row[18], 'chassis_no': row[19], 'year': row[20]
             }
             dialog = JobCardEditDialog(job_data, self)
             if dialog.exec():

@@ -7,7 +7,7 @@ echo.
 echo ========================================
 echo Senarath Workshop - Windows Build Script
 echo ========================================
-echo.
+echo By DrkCyph7
 
 REM Check if Python is installed
 python --version >nul 2>&1
@@ -20,7 +20,7 @@ if errorlevel 1 (
 
 REM Check if virtual environment exists
 if not exist ".venv" (
-    echo [1/4] Creating virtual environment...
+    echo [1/5] Creating virtual environment...
     python -m venv .venv
     if errorlevel 1 (
         echo ERROR: Failed to create virtual environment
@@ -30,11 +30,11 @@ if not exist ".venv" (
 )
 
 REM Activate virtual environment
-echo [2/4] Activating virtual environment...
+echo [2/5] Activating virtual environment...
 call .venv\Scripts\activate.bat
 
 REM Install/upgrade dependencies
-echo [3/4] Installing dependencies...
+echo [3/5] Installing dependencies...
 pip install -q -r requirements.txt
 if errorlevel 1 (
     echo ERROR: Failed to install dependencies
@@ -42,8 +42,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Ensure ui/db directory exists
+echo [4/5] Ensuring database directory exists...
+if not exist "ui\db" (
+    mkdir ui\db
+    echo Created ui\db directory
+)
+
 REM Build executable
-echo [4/4] Building executable...
+echo [5/5] Building executable...
 pyinstaller --clean build_exe.spec
 if errorlevel 1 (
     echo ERROR: PyInstaller build failed
@@ -53,7 +60,7 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
-echo SUCCESS! Build Complete
+echo SUCCESS! Build Complete :
 echo ========================================
 echo.
 echo Your executable is ready at:

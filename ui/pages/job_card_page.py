@@ -1107,6 +1107,22 @@ class JobCardPage(QWidget):
         self.type_input = QLineEdit()
         self.type_input.setReadOnly(True)
         self.type_input.setPlaceholderText("Auto-filled")
+        
+        self.engine_no_input = QLineEdit()
+        self.engine_no_input.setReadOnly(True)
+        self.engine_no_input.setPlaceholderText("Auto-filled")
+        
+        self.chassis_no_input = QLineEdit()
+        self.chassis_no_input.setReadOnly(True)
+        self.chassis_no_input.setPlaceholderText("Auto-filled")
+        
+        self.year_input = QLineEdit()
+        self.year_input.setReadOnly(True)
+        self.year_input.setPlaceholderText("Auto-filled")
+        
+        self.status_input = QComboBox()
+        self.status_input.addItems(['Completed', 'In Progress'])
+        self.status_input.setCurrentText('Completed')
 
         self.end_date_input = QDateEdit(QDate.currentDate())
         self.end_date_input.setCalendarPopup(True)
@@ -1138,10 +1154,20 @@ class JobCardPage(QWidget):
         grid.addWidget(create_label("Hr/Km Reading"), 4, 2)
         grid.addWidget(self.hr_km_input, 4, 3)
 
-        grid.addWidget(create_label("Start Date"), 5, 0)
-        grid.addWidget(self.date_input, 5, 1)
-        grid.addWidget(create_label("End Date"), 5, 2)
-        grid.addWidget(self.end_date_input, 5, 3)
+        grid.addWidget(create_label("Engine No"), 5, 0)
+        grid.addWidget(self.engine_no_input, 5, 1)
+        grid.addWidget(create_label("Chassis No"), 5, 2)
+        grid.addWidget(self.chassis_no_input, 5, 3)
+
+        grid.addWidget(create_label("Year"), 6, 0)
+        grid.addWidget(self.year_input, 6, 1)
+        grid.addWidget(create_label("Status"), 6, 2)
+        grid.addWidget(self.status_input, 6, 3)
+
+        grid.addWidget(create_label("Start Date"), 7, 0)
+        grid.addWidget(self.date_input, 7, 1)
+        grid.addWidget(create_label("End Date"), 7, 2)
+        grid.addWidget(self.end_date_input, 7, 3)
 
         basic_layout.addLayout(grid)
         root_layout.addWidget(basic_card)
@@ -1465,9 +1491,9 @@ class JobCardPage(QWidget):
         cur = self.conn.cursor()
 
         # Build comprehensive vehicle data for bidirectional lookup
-        cur.execute("SELECT company_no, number, make, model, type FROM vehicles")
-        self.vehicles_data = {}  # {vehicle_number: {company_no, make, model, type}} - for vehicles with numbers
-        self.company_vehicles = {}  # {company_no: [{make, model, type, number}, ...]} - all vehicles per company
+        cur.execute("SELECT company_no, number, make, model, type, engine_no, chassis_no, year FROM vehicles")
+        self.vehicles_data = {}  # {vehicle_number: {company_no, make, model, type, engine_no, chassis_no, year}} - for vehicles with numbers
+        self.company_vehicles = {}  # {company_no: [{make, model, type, number, engine_no, chassis_no, year}, ...]} - all vehicles per company
         self.vehicle_to_company = {}  # {vehicle_number: company_no} - quick lookup
         self.company_to_vehicles = {}  # {company_no: [vehicle_numbers]} - vehicles per company
         
@@ -1475,7 +1501,7 @@ class JobCardPage(QWidget):
         company_nos = set()
         
         for row in cur.fetchall():
-            company_no, number, make, model, vtype = row
+            company_no, number, make, model, vtype, engine_no, chassis_no, year = row
             
             # Always store company info
             if company_no:
@@ -1488,7 +1514,10 @@ class JobCardPage(QWidget):
                     'number': number if (number and number != "-") else None,
                     'make': make,
                     'model': model,
-                    'type': vtype
+                    'type': vtype,
+                    'engine_no': engine_no,
+                    'chassis_no': chassis_no,
+                    'year': year
                 })
             
             # If vehicle has a number, index it
@@ -1497,7 +1526,10 @@ class JobCardPage(QWidget):
                     'company_no': company_no,
                     'make': make,
                     'model': model,
-                    'type': vtype
+                    'type': vtype,
+                    'engine_no': engine_no,
+                    'chassis_no': chassis_no,
+                    'year': year
                 }
                 self.vehicle_to_company[number] = company_no
                 vehicle_numbers.add(number)
@@ -1666,16 +1698,22 @@ class JobCardPage(QWidget):
             pass
 
     def _update_vehicle_details(self, vehicle_no):
-        """Helper method to update make, model, type from vehicle data"""
+        """Helper method to update make, model, type, engine_no, chassis_no, year from vehicle data"""
         if vehicle_no in self.vehicles_data:
             data = self.vehicles_data[vehicle_no]
             self.make_input.setText(data.get('make', ''))
             self.model_input.setText(data.get('model', ''))
             self.type_input.setText(data.get('type', ''))
+            self.engine_no_input.setText(data.get('engine_no', ''))
+            self.chassis_no_input.setText(data.get('chassis_no', ''))
+            self.year_input.setText(data.get('year', ''))
         else:
             self.make_input.clear()
             self.model_input.clear()
             self.type_input.clear()
+            self.engine_no_input.clear()
+            self.chassis_no_input.clear()
+            self.year_input.clear()
 
     def on_date_changed(self):
         """Update job number when start date changes"""
@@ -1978,8 +2016,9 @@ class JobCardPage(QWidget):
         self.driver_input.clear()
         for combo in [self.site_input, self.section_input]:
             combo.setCurrentIndex(-1)
-        for line in [self.make_input, self.model_input, self.type_input, self.hr_km_input]:
+        for line in [self.make_input, self.model_input, self.type_input, self.hr_km_input, self.engine_no_input, self.chassis_no_input, self.year_input]:
             line.clear()
+        self.status_input.setCurrentText('Completed')
         self.date_input.setDate(QDate.currentDate())
         self.end_date_input.setDate(QDate.currentDate())
         self.desc_input.clear()
@@ -1992,7 +2031,7 @@ class JobCardPage(QWidget):
         self.update_grand_totals()
 
     def save_job_card(self):
-        """Save job card with status defaulting to 'In Progress'"""
+        """Save job card with status defaulting to 'Completed'"""
         job_no = self.job_no_input.text().strip()
         company_no = self.company_no_input.text().strip()
         driver_name = self.driver_input.text().strip()
@@ -2025,8 +2064,8 @@ class JobCardPage(QWidget):
             cur.execute("""
                 INSERT INTO job_cards (
                     job_no, company_no, vehicle_no, driver, make, model, type,
-                    site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    site, section, hr_km, start_date, end_date, description, spare_parts, labour_works, outsource_works, status, engine_no, chassis_no, year
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 job_no,
                 company_no,
@@ -2044,7 +2083,10 @@ class JobCardPage(QWidget):
                 spare_parts_json,
                 labour_works_json,
                 outsource_works_json,
-                'In Progress'  # Default status for new job cards
+                self.status_input.currentText(),  # Get status from dropdown
+                self.engine_no_input.text() if hasattr(self, 'engine_no_input') else '',
+                self.chassis_no_input.text() if hasattr(self, 'chassis_no_input') else '',
+                self.year_input.text() if hasattr(self, 'year_input') else ''
             ))
             self.conn.commit()
 
